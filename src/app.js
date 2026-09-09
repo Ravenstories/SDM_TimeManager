@@ -1,16 +1,26 @@
-import {
-  duration,
-  localDate,
-  totals,
-  switchRole,
-  validateState,
-} from "./domain.js";
-import { LocalRepository, KEY } from "./storage.js";
+import { duration, localDate, totals, switchRole } from "./domain.js";
+import { KEY } from "./storage.js";
+import { IndexedRepository } from "./indexed-repository.js";
+import { setupData } from "./data-view.js";
+import { setupReports } from "./report-view.js";
 const $ = (id) => document.getElementById(id);
 let repository,
   state,
   selectedDay = localDate(),
   lastToday = localDate();
+const reports = setupReports({
+  getState: () => state,
+  download,
+  showDay: (date) => {
+    selectedDay = date;
+    $("day").value = date;
+    document.body.classList.remove("compact");
+    $("compact").textContent = "Compact view";
+    $("compact").setAttribute("aria-pressed", "false");
+    render();
+    document.querySelector(".journal").scrollIntoView({ block: "start" });
+  },
+});
 const announce = (message) => {
   $("announcement").textContent = message;
 };
@@ -19,11 +29,12 @@ function fail(error) {
   $("error").textContent =
     `Could not save or load your data: ${error.message} Your existing records have not been replaced. Export a backup if possible.`;
 }
-async function change(fn, message) {
+async function change(fn, message, options) {
   try {
-    state = await repository.update(fn);
+    state = await repository.update(fn, options);
     $("error").hidden = true;
     render();
+    channel?.postMessage("changed");
     if (message) announce(message);
     return true;
   } catch (error) {
@@ -138,6 +149,7 @@ function renderNotes() {
 function render() {
   tick();
   renderNotes();
+  reports.refresh();
 }
 function download(content, name, type) {
   const url = URL.createObjectURL(new Blob([content], { type }));
@@ -163,6 +175,7 @@ document.addEventListener("keydown", (e) => {
     e.metaKey ||
     e.altKey ||
     $("settings").open ||
+    $("reports").open ||
     /INPUT|TEXTAREA|SELECT|BUTTON/.test(e.target.tagName) ||
     e.target.isContentEditable
   )
@@ -211,111 +224,35 @@ $("compact").onclick = () => {
   $("compact").textContent = compact ? "Full view" : "Compact view";
   $("compact").setAttribute("aria-pressed", String(compact));
 };
-$("data").onclick = () => $("settings").showModal();
-$("close-settings").onclick = () => $("settings").close();
-$("export").onclick = () => {
+const channel = "BroadcastChannel" in window ? new BroadcastChannel(KEY) : null;
+const dataView = setupData({
+  getRepository: () => repository,
+  change,
+  download,
+  fail,
+});
+async function reloadState() {
+  if (!repository) return;
   try {
-    download(
-      JSON.stringify(
-        { exportedAt: Date.now(), state: repository.read() },
-        null,
-        2,
-      ),
-      `sdm-backup-${localDate()}.json`,
-      "application/json",
-    );
+    state = await repository.read();
+    render();
   } catch (error) {
     fail(error);
   }
-};
-$("csv").onclick = () => {
-  try {
-    const saved = repository.read(),
-      now = Date.now();
-    const sessions = saved.active
-      ? [...saved.sessions, { ...saved.active, end: now }]
-      : saved.sessions;
-    const rows = sessions.map((s) => [
-      s.role.toUpperCase(),
-      new Date(s.start).toISOString(),
-      new Date(s.end).toISOString(),
-      ((s.end - s.start) / 60000).toFixed(2),
-    ]);
-    download(
-      [
-        "Role,Start (UTC),End (UTC),Minutes",
-        ...rows.map((r) => r.join(",")),
-      ].join("\r\n"),
-      `sdm-time-${localDate()}.csv`,
-      "text/csv",
-    );
-  } catch (error) {
-    fail(error);
-  }
-};
-$("import").onchange = async () => {
-  const file = $("import").files[0];
-  if (!file) return;
-  try {
-    if (file.size > 10000000)
-      throw new Error("Backup is too large (maximum 10 MB).");
-    const backup = JSON.parse(await file.text());
-    let imported = validateState(backup.state);
-    if (
-      !Number.isFinite(backup.exportedAt) ||
-      backup.exportedAt < 0 ||
-      backup.exportedAt > Date.now() + 60000
-    )
-      throw new Error("Invalid backup export time.");
-    if (imported.active && backup.exportedAt < imported.active.start)
-      throw new Error("Invalid running session.");
-    if (imported.active)
-      imported = switchRole(
-        imported,
-        null,
-        backup.exportedAt,
-        crypto.randomUUID(),
-      );
-    if (
-      confirm(
-        `Replace this browser's records with ${imported.sessions.length} sessions and ${imported.notes.length} notes? Export a backup first if you need the current records.`,
-      )
-    )
-      await change(() => imported, "Backup restored. Tracking paused.");
-  } catch (error) {
-    fail(error);
-  } finally {
-    $("import").value = "";
-  }
-};
+}
+if (channel) channel.onmessage = reloadState;
 try {
-  repository = new LocalRepository(localStorage);
-  state = repository.read();
+  repository = await new IndexedRepository().open();
+  state = await repository.read();
   $("note").value = localStorage.getItem(KEY + ".draft") || "";
   if (state.active) $("note-role").value = state.active.role;
   render();
+  await dataView.refresh();
 } catch (error) {
   fail(error);
 }
-window.addEventListener("storage", (e) => {
-  if (e.key === KEY || e.key === null) {
-    try {
-      state = repository.read();
-      render();
-    } catch (error) {
-      fail(error);
-    }
-  }
-});
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) {
-    try {
-      state = repository.read();
-      render();
-    } catch (error) {
-      fail(error);
-    }
-  }
+  if (!document.hidden) reloadState();
 });
 setInterval(tick, 1000);
 if ("serviceWorker" in navigator)

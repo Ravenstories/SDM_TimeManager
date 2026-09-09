@@ -1,10 +1,15 @@
-const CACHE = "sdm-shell-v2";
+const CACHE = "sdm-shell-v3";
 const FILES = [
   "./",
   "./index.html",
   "./src/app.js",
   "./src/domain.js",
   "./src/storage.js",
+  "./src/indexed-repository.js",
+  "./src/reports.js",
+  "./src/report-view.js",
+  "./src/backup.js",
+  "./src/data-view.js",
   "./src/styles.css",
   "./icon.svg",
   "./manifest.webmanifest",

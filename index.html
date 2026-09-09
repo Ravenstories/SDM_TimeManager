@@ -20,6 +20,7 @@
         <span class="brand-light">Time Manager</span></a
       >
       <div class="header-actions">
+        <button id="open-reports" class="quiet">Reports</button>
         <button id="compact" class="quiet">Compact view</button
         ><button id="data" class="quiet">Data & help</button>
       </div>
@@ -34,6 +35,9 @@
         <span id="work-status" class="status">Ready when you are</span>
       </section>
       <div id="error" role="alert" hidden></div>
+      <button id="backup-reminder" class="backup-reminder" hidden>
+        Keep your history safe · Export a backup
+      </button>
       <section class="clocks" aria-label="Responsibility timers">
         <button class="clock vd" id="vd" aria-pressed="false">
           <span class="card-heading"
@@ -126,6 +130,64 @@
       </footer>
     </main>
     <div id="announcement" class="sr-only" role="status"></div>
+    <dialog id="reports" aria-labelledby="report-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">THE BIGGER PICTURE</p>
+          <h2 id="report-title">Your time over time</h2>
+        </div>
+        <button id="close-reports" aria-label="Close reports">✕</button>
+      </div>
+      <div class="report-controls">
+        <label
+          >Period
+          <select id="report-period">
+            <option value="day">Daily</option>
+            <option value="week">Weekly</option>
+            <option value="month" selected>Monthly</option>
+            <option value="year">Yearly</option>
+          </select></label
+        ><label>Containing date <input id="report-anchor" type="date" /></label
+        ><button id="refresh-report">Refresh</button>
+      </div>
+      <p id="report-description"></p>
+      <div class="report-totals">
+        <div><span>VD · SDM</span><strong id="report-vd">00:00:00</strong></div>
+        <div>
+          <span>SIT · Servicedesk</span
+          ><strong id="report-sit">00:00:00</strong>
+        </div>
+        <div>
+          <span>Total tracked</span><strong id="report-total">00:00:00</strong>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <caption>
+            Daily breakdown · select a date to see its notes
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Date</th>
+              <th scope="col">VD</th>
+              <th scope="col">SIT</th>
+              <th scope="col">Total</th>
+              <th scope="col">Notes</th>
+            </tr>
+          </thead>
+          <tbody id="report-rows"></tbody>
+        </table>
+      </div>
+      <p id="report-empty" class="empty">
+        No time or notes recorded in this period.
+      </p>
+      <div class="report-footer">
+        <span class="hint"
+          >Hours : minutes : seconds · Monday starts each week.<br />Running
+          time is included as of the last refresh.</span
+        ><button id="report-csv">Export report CSV</button>
+      </div>
+    </dialog>
     <dialog id="settings">
       <div class="section-heading">
         <h2>Your time, your data.</h2>
@@ -137,9 +199,20 @@
         saved start time. Your device's local timezone determines each day.
       </p>
       <p>
-        Notes and time stay in this browser. There is no account or cloud sync.
-        Export a backup before clearing browser data or changing devices.
+        Time and notes are saved automatically in a database in this browser.
+        They are not published to GitHub. There is no cloud sync. Download
+        backups to keep a copy outside this browser, or to move your history to
+        another device.
       </p>
+      <p id="storage-status" role="status"></p>
+      <button id="protect-storage">Protect browser storage</button>
+      <p class="hint">
+        Protection can reduce automatic browser cleanup, but it cannot protect
+        against clearing site data, losing this device, or private browsing.
+        Keep an external backup.
+      </p>
+      <h3>External backups</h3>
+      <p id="backup-status"></p>
       <div class="data-actions">
         <button id="export">Export backup</button
         ><button id="csv">Export time CSV</button
@@ -152,8 +225,23 @@
       </div>
       <p class="hint">
         Restoring replaces local records and pauses an imported running timer at
-        its export time. You’ll be asked to confirm.
+        its export time. A recovery point preserves your current records first.
       </p>
+      <h3>Recovery points</h3>
+      <p>
+        Up to 14 snapshots are kept in this browser: before the first change
+        each day and before a restore. These help undo a restore but are not an
+        external backup.
+      </p>
+      <label class="recovery-label"
+        >Saved snapshot
+        <select id="recovery-point"></select
+      ></label>
+      <p id="recovery-empty" class="hint">
+        A recovery point will be created when you first track time or save a
+        note.
+      </p>
+      <button id="restore-point" disabled>Restore recovery point</button>
       <h3>Keep it close</h3>
       <p>
         Pin this tab or use your browser's install / open as app option where

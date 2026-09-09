@@ -1,3 +1,146 @@
+.backup-reminder {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: 12px;
+  background: #edf1e8;
+  border: 1px solid #d5ddcd;
+  margin-bottom: 18px;
+  padding: 12px 16px;
+  font-weight: 500;
+}
+#reports {
+  max-width: 820px;
+}
+.report-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+}
+.report-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+}
+.report-controls select {
+  margin: 0;
+  border: 1px solid #d0d9cf;
+}
+.report-controls button {
+  font-size: 12px;
+}
+.report-totals {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 22px 0;
+}
+.report-totals > div {
+  background: #edf3eb;
+  padding: 18px;
+  border-radius: 10px;
+  min-width: 0;
+}
+.report-totals > div:nth-child(2) {
+  background: #f7eedc;
+}
+.report-totals span {
+  font-size: 11px;
+  display: block;
+  margin-bottom: 7px;
+}
+.report-totals strong {
+  font-size: 23px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 550;
+}
+.table-scroll {
+  overflow: auto;
+  max-height: 340px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+caption {
+  text-align: left;
+  font-size: 11px;
+  color: #6a786e;
+  padding-bottom: 12px;
+}
+th,
+td {
+  text-align: right;
+  border-bottom: 1px solid #dce2da;
+  padding: 10px;
+}
+th:first-child,
+td:first-child {
+  text-align: left;
+}
+th {
+  font-weight: 600;
+}
+td .quiet {
+  padding: 4px 0;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.report-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+.report-footer button {
+  font-size: 12px;
+}
+.recovery-label {
+  font-size: 12px;
+  display: block;
+  margin: 14px 0;
+}
+.recovery-label select {
+  display: block;
+  margin: 7px 0;
+  max-width: 100%;
+  white-space: normal;
+}
+#settings {
+  max-height: 85vh;
+  overflow: auto;
+}
+@media (max-width: 620px) {
+  .report-totals {
+    gap: 6px;
+  }
+  .report-totals > div {
+    padding: 10px 6px;
+  }
+  .report-totals strong {
+    font-size: 16px;
+  }
+  .report-totals span {
+    font-size: 10px;
+  }
+  .report-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  #reports {
+    padding: 18px;
+  }
+  .header-actions {
+    flex-wrap: wrap;
+  }
+}
 * {
   box-sizing: border-box;
 }
