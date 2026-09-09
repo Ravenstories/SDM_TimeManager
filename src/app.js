@@ -102,7 +102,9 @@ function renderNotes() {
     const empty = document.createElement("p");
     empty.className = "empty";
     empty.textContent =
-      "A little context goes a long way. Add your first note for today.";
+      selectedDay === localDate()
+        ? "A little context goes a long way. Add your first note for today."
+        : "No notes saved for this day.";
     $("notes").append(empty);
   }
   for (const note of notes) {
