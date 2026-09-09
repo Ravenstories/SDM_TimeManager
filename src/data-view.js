@@ -34,6 +34,7 @@ export function setupData({ getRepository, change, download, fail }) {
     }
   }
   $("data").onclick = () => {
+    $("data-error").hidden = true;
     $("settings").showModal();
     refresh();
   };

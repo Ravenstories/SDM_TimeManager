@@ -28,11 +28,14 @@ function fail(error) {
   $("error").hidden = false;
   $("error").textContent =
     `Could not save or load your data: ${error.message} Your existing records have not been replaced. Export a backup if possible.`;
+  $("data-error").hidden = false;
+  $("data-error").textContent = error.message;
 }
 async function change(fn, message, options) {
   try {
     state = await repository.update(fn, options);
     $("error").hidden = true;
+    $("data-error").hidden = true;
     render();
     channel?.postMessage("changed");
     if (message) announce(message);
