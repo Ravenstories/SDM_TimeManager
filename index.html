@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#f7f8f5" />
+    <meta
+      name="description"
+      content="A quiet, two-role work timer for VD and SIT."
+    />
+    <title>SDM Time Manager</title>
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="./"
+        ><span class="logo" aria-hidden="true">◷</span> SDM
+        <span class="brand-light">Time Manager</span></a
+      >
+      <div class="header-actions">
+        <button id="compact" class="quiet">Compact view</button
+        ><button id="data" class="quiet">Data & help</button>
+      </div>
+    </header>
+    <main>
+      <section class="intro">
+        <div>
+          <p class="eyebrow" id="today-label">YOUR WORKDAY</p>
+          <h1>Make time for both.</h1>
+          <p class="subtitle">Two responsibilities. One thing at a time.</p>
+        </div>
+        <span id="work-status" class="status">Ready when you are</span>
+      </section>
+      <div id="error" role="alert" hidden></div>
+      <section class="clocks" aria-label="Responsibility timers">
+        <button class="clock vd" id="vd" aria-pressed="false">
+          <span class="card-heading"
+            ><span
+              ><span class="role-title"><i></i>VD</span
+              ><span class="role-description">SDM</span></span
+            ><span class="badge" id="vd-badge">Ready</span></span
+          ><span class="time" id="vd-time">00:00:00</span
+          ><span class="time-caption">tracked today</span
+          ><span class="card-bottom"
+            ><span id="vd-action"
+              >Start VD <span aria-hidden="true">↗</span></span
+            ><kbd>1</kbd></span
+          >
+        </button>
+        <button class="clock sit" id="sit" aria-pressed="false">
+          <span class="card-heading"
+            ><span
+              ><span class="role-title"><i></i>SIT</span
+              ><span class="role-description">SDM / Servicedesk</span></span
+            ><span class="badge" id="sit-badge">Ready</span></span
+          ><span class="time" id="sit-time">00:00:00</span
+          ><span class="time-caption">tracked today</span
+          ><span class="card-bottom"
+            ><span id="sit-action"
+              >Start SIT <span aria-hidden="true">↗</span></span
+            ><kbd>2</kbd></span
+          >
+        </button>
+      </section>
+      <div class="timer-controls">
+        <button id="pause" class="primary" disabled>Ⅱ Pause tracking</button
+        ><span id="session-status">Select a responsibility to begin.</span>
+      </div>
+      <section class="split" aria-label="Today's time split">
+        <div class="split-labels">
+          <span>Today's balance</span><strong id="total">0h 00m total</strong>
+        </div>
+        <div class="split-track">
+          <div id="vd-bar"></div>
+          <div id="sit-bar"></div>
+        </div>
+        <div class="split-legend">
+          <span><i class="dot vd-dot"></i>VD <b id="vd-percent">0%</b></span
+          ><span
+            ><i class="dot sit-dot"></i>SIT <b id="sit-percent">0%</b></span
+          >
+        </div>
+      </section>
+      <section class="journal">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">LEAVE A LITTLE CONTEXT</p>
+            <h2>Work notes</h2>
+          </div>
+          <label class="date-label"
+            >View day <input type="date" id="day"
+          /></label>
+        </div>
+        <div id="past-summary" hidden></div>
+        <form id="note-form">
+          <label class="sr-only" for="note">Work note</label
+          ><textarea
+            id="note"
+            rows="2"
+            maxlength="5000"
+            placeholder="What are you working on?"
+          ></textarea>
+          <div class="note-toolbar">
+            <label
+              >For
+              <select id="note-role">
+                <option value="vd">VD · SDM</option>
+                <option value="sit">SIT · Servicedesk</option>
+              </select></label
+            ><button type="submit" class="primary">
+              Add note <span aria-hidden="true">↗</span>
+            </button>
+          </div>
+          <p class="hint">
+            Notes are saved to today. Your draft stays here when you switch
+            roles.
+          </p>
+        </form>
+        <div id="notes"></div>
+      </section>
+      <footer>
+        <span><i class="dot vd-dot"></i> Saved on this device</span
+        ><span>1 / 2 to switch · Space to pause</span>
+      </footer>
+    </main>
+    <div id="announcement" class="sr-only" role="status"></div>
+    <dialog id="settings">
+      <div class="section-heading">
+        <h2>Your time, your data.</h2>
+        <button id="close-settings" aria-label="Close dialog">✕</button>
+      </div>
+      <p>
+        Time continues until you pause or switch, including while minimized,
+        asleep, or closed. On your return, elapsed time is calculated from the
+        saved start time. Your device's local timezone determines each day.
+      </p>
+      <p>
+        Notes and time stay in this browser. There is no account or cloud sync.
+        Export a backup before clearing browser data or changing devices.
+      </p>
+      <div class="data-actions">
+        <button id="export">Export backup</button
+        ><button id="csv">Export time CSV</button
+        ><label class="file-button"
+          >Restore backup<input
+            type="file"
+            id="import"
+            accept="application/json,.json"
+        /></label>
+      </div>
+      <p class="hint">
+        Restoring replaces local records and pauses an imported running timer at
+        its export time. You’ll be asked to confirm.
+      </p>
+      <h3>Keep it close</h3>
+      <p>
+        Pin this tab or use your browser's install / open as app option where
+        available. Compact view keeps both clocks within easy reach. After the
+        first online visit, the app can open offline.
+      </p>
+      <p class="hint">
+        Keyboard shortcuts work while this app has focus, outside text fields.
+        They are not global desktop shortcuts.
+      </p>
+    </dialog>
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
