@@ -52,6 +52,45 @@ export function switchRole(state, role, now, id) {
   next.active = role ? { role, start: now } : null;
   return next;
 }
+export function saveSession(state, session) {
+  if (
+    !session ||
+    typeof session.id !== "string" ||
+    !ROLES.includes(session.role) ||
+    !Number.isFinite(session.start) ||
+    !Number.isFinite(session.end) ||
+    session.start < 0 ||
+    session.end <= session.start
+  )
+    throw new Error("Enter a valid start and end time.");
+
+  const otherSessions = state.sessions.filter((item) => item.id !== session.id);
+  const occupied = state.active
+    ? [
+        ...otherSessions,
+        { ...state.active, end: Number.POSITIVE_INFINITY },
+      ]
+    : otherSessions;
+  if (
+    occupied.some(
+      (item) => session.start < item.end && session.end > item.start,
+    )
+  )
+    throw new Error("This entry overlaps another tracked session.");
+
+  return {
+    ...state,
+    sessions: [...otherSessions, { ...session }].sort(
+      (a, b) => a.start - b.start,
+    ),
+  };
+}
+export function removeSession(state, id) {
+  return {
+    ...state,
+    sessions: state.sessions.filter((session) => session.id !== id),
+  };
+}
 export function dayBounds(date) {
   const start = new Date(`${date}T00:00:00`);
   const end = new Date(start);

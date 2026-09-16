@@ -471,6 +471,15 @@ kbd {
   font-size: 11px;
   color: #65766a;
 }
+.day-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.day-actions button {
+  padding: 8px 10px;
+  font-size: 11px;
+}
 input,
 select {
   color: inherit;
@@ -522,6 +531,87 @@ select {
   color: #6a786e;
   line-height: 1.7;
   margin: 12px 0 0;
+}
+.note-hint {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.note-actions {
+  display: flex;
+}
+.note-editing {
+  display: block;
+}
+.note-editing textarea {
+  border: 1px solid #d0d9cf;
+  border-radius: 7px;
+  padding: 10px;
+  background: #fff;
+}
+.inline-editor-actions,
+.editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+#time-editor {
+  max-width: 680px;
+}
+.time-entry-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #dce2da;
+  font-size: 13px;
+}
+.time-entry-row strong {
+  margin-right: 8px;
+}
+.time-entry-row small {
+  color: #6a786e;
+  margin-left: 8px;
+}
+.time-entry-row div {
+  display: flex;
+  gap: 5px;
+}
+.time-entry-row button {
+  padding: 6px 9px;
+  font-size: 11px;
+}
+#time-entry-form {
+  border-top: 1px solid #dce2da;
+  margin-top: 22px;
+  padding-top: 20px;
+}
+.entry-fields {
+  display: grid;
+  grid-template-columns: 1fr 1.35fr 1.35fr;
+  gap: 10px;
+}
+.entry-fields label {
+  font-size: 11px;
+  color: #65766a;
+}
+.entry-fields input,
+.entry-fields select {
+  display: block;
+  width: 100%;
+  margin: 5px 0 0;
+  border: 1px solid #d0d9cf;
+}
+.form-error {
+  color: #9a3f2b;
+  background: #fff0e9;
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+.compact-empty {
+  padding: 14px;
 }
 .note-row {
   display: grid;
@@ -738,6 +828,16 @@ body.compact .timer-controls {
     flex-direction: column;
     align-items: flex-end;
     gap: 3px;
+  }
+  .day-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .entry-fields {
+    grid-template-columns: 1fr;
+  }
+  .time-entry-row {
+    align-items: flex-start;
   }
   .note-row {
     gap: 8px;

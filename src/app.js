@@ -1,4 +1,12 @@
-import { duration, localDate, totals, switchRole } from "./domain.js";
+import {
+  duration,
+  localDate,
+  totals,
+  switchRole,
+  saveSession,
+  removeSession,
+  dayBounds,
+} from "./domain.js";
 import { KEY } from "./storage.js";
 import { IndexedRepository } from "./indexed-repository.js";
 import { setupData } from "./data-view.js";
@@ -135,6 +143,12 @@ function renderNotes() {
     });
     const content = document.createElement("p");
     content.textContent = note.text;
+    const actions = document.createElement("div");
+    actions.className = "note-actions";
+    const edit = document.createElement("button");
+    edit.textContent = "Edit";
+    edit.setAttribute("aria-label", `Edit note: ${note.text.slice(0, 40)}`);
+    edit.onclick = () => editNote(row, note);
     const remove = document.createElement("button");
     remove.textContent = "Delete";
     remove.setAttribute("aria-label", `Delete note: ${note.text.slice(0, 40)}`);
@@ -145,9 +159,43 @@ function renderNotes() {
           "Note deleted",
         );
     };
-    row.append(tag, time, content, remove);
+    actions.append(edit, remove);
+    row.append(tag, time, content, actions);
     $("notes").append(row);
   }
+}
+function editNote(row, note) {
+  const editor = document.createElement("textarea");
+  editor.value = note.text;
+  editor.maxLength = 5000;
+  editor.setAttribute("aria-label", "Edit note text");
+  const actions = document.createElement("div");
+  actions.className = "inline-editor-actions";
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.textContent = "Cancel";
+  cancel.onclick = renderNotes;
+  const save = document.createElement("button");
+  save.type = "button";
+  save.className = "primary";
+  save.textContent = "Save";
+  save.onclick = async () => {
+    const text = editor.value.trim();
+    if (!text) return editor.focus();
+    await change(
+      (s) => ({
+        ...s,
+        notes: s.notes.map((item) =>
+          item.id === note.id ? { ...item, text } : item,
+        ),
+      }),
+      "Note updated",
+    );
+  };
+  actions.append(cancel, save);
+  row.replaceChildren(editor, actions);
+  row.classList.add("note-editing");
+  editor.focus();
 }
 function render() {
   tick();
@@ -168,6 +216,11 @@ $("day").onchange = () => {
     selectedDay = $("day").value;
     render();
   }
+};
+$("today").onclick = () => {
+  selectedDay = localDate();
+  $("day").value = selectedDay;
+  render();
 };
 for (const role of ["vd", "sit"]) $(role).onclick = () => activate(role);
 $("pause").onclick = () => activate(null);
@@ -221,6 +274,107 @@ $("note").oninput = () => {
   } catch (error) {
     fail(error);
   }
+  $("note-count").textContent = `${$("note").value.length} / 5000`;
+};
+
+const localInputValue = (timestamp) => {
+  const date = new Date(
+    timestamp - new Date(timestamp).getTimezoneOffset() * 60000,
+  );
+  return date.toISOString().slice(0, 16);
+};
+function resetTimeEntryForm() {
+  const [start] = dayBounds(selectedDay);
+  $("time-entry-id").value = "";
+  $("time-entry-role").value = state.active?.role || "vd";
+  $("time-entry-start").value = localInputValue(start + 9 * 3600000);
+  $("time-entry-end").value = localInputValue(start + 10 * 3600000);
+  $("save-time-entry").textContent = "Add time entry";
+  $("cancel-time-entry").hidden = true;
+  $("time-entry-error").hidden = true;
+}
+function renderTimeEditor() {
+  $("time-editor-day").textContent = new Date(
+    `${selectedDay}T12:00:00`,
+  ).toLocaleDateString(undefined, {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const [dayStart, dayEnd] = dayBounds(selectedDay);
+  const entries = state.sessions.filter(
+    (session) => session.start < dayEnd && session.end > dayStart,
+  );
+  $("time-entry-list").replaceChildren();
+  if (!entries.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty compact-empty";
+    empty.textContent = "No completed time entries on this day.";
+    $("time-entry-list").append(empty);
+  }
+  for (const session of entries) {
+    const row = document.createElement("div");
+    row.className = "time-entry-row";
+    const summary = document.createElement("span");
+    summary.innerHTML = `<strong>${session.role.toUpperCase()}</strong> ${new Date(session.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}–${new Date(session.end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} <small>${duration(session.end - session.start)}</small>`;
+    const edit = document.createElement("button");
+    edit.textContent = "Edit";
+    edit.onclick = () => {
+      $("time-entry-id").value = session.id;
+      $("time-entry-role").value = session.role;
+      $("time-entry-start").value = localInputValue(session.start);
+      $("time-entry-end").value = localInputValue(session.end);
+      $("save-time-entry").textContent = "Save changes";
+      $("cancel-time-entry").hidden = false;
+      $("time-entry-start").focus();
+    };
+    const remove = document.createElement("button");
+    remove.textContent = "Delete";
+    remove.onclick = async () => {
+      if (confirm("Delete this time entry?")) {
+        await change((s) => removeSession(s, session.id), "Time entry deleted");
+        renderTimeEditor();
+      }
+    };
+    const actions = document.createElement("div");
+    actions.append(edit, remove);
+    row.append(summary, actions);
+    $("time-entry-list").append(row);
+  }
+}
+$("manage-time").onclick = () => {
+  resetTimeEntryForm();
+  renderTimeEditor();
+  $("time-editor").showModal();
+};
+$("close-time-editor").onclick = () => $("time-editor").close();
+$("cancel-time-entry").onclick = resetTimeEntryForm;
+$("time-entry-form").onsubmit = async (event) => {
+  event.preventDefault();
+  const entry = {
+    id: $("time-entry-id").value || crypto.randomUUID(),
+    role: $("time-entry-role").value,
+    start: new Date($("time-entry-start").value).getTime(),
+    end: new Date($("time-entry-end").value).getTime(),
+  };
+  try {
+    saveSession(state, entry);
+    if (
+      await change(
+        (current) => saveSession(current, entry),
+        $("time-entry-id").value
+          ? "Time entry updated"
+          : "Time entry added",
+      )
+    ) {
+      resetTimeEntryForm();
+      renderTimeEditor();
+    }
+  } catch (error) {
+    $("time-entry-error").textContent = error.message;
+    $("time-entry-error").hidden = false;
+  }
 };
 $("compact").onclick = () => {
   const compact = document.body.classList.toggle("compact");
@@ -248,6 +402,7 @@ try {
   repository = await new IndexedRepository().open();
   state = await repository.read();
   $("note").value = localStorage.getItem(KEY + ".draft") || "";
+  $("note-count").textContent = `${$("note").value.length} / 5000`;
   if (state.active) $("note-role").value = state.active.role;
   render();
   await dataView.refresh();
