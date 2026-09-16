@@ -77,6 +77,7 @@ select:focus-visible {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 1rem;
   background: #ffffffa8;
 }
@@ -155,6 +156,7 @@ h3 {
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
+  flex-wrap: wrap;
 }
 .intro {
   margin-bottom: 1.6rem;
@@ -187,10 +189,11 @@ h3 {
 }
 .clocks {
   display: grid;
-  grid-template-columns: repeat(var(--clock-columns, 3), minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
   gap: 1rem;
 }
 .clock {
+  min-width: 0;
   display: flex;
   align-items: flex-start;
   flex-direction: column;
@@ -255,7 +258,7 @@ h3 {
 }
 .totals {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
   gap: 0.7rem;
   margin: 1rem 0;
 }
@@ -292,7 +295,7 @@ h3 {
 }
 .day-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr));
   gap: 1.2rem;
 }
 .panel {
@@ -388,6 +391,7 @@ label {
 input,
 textarea,
 select {
+  min-width: 0;
   max-width: 100%;
   border: 1px solid #bdcec3;
   padding: 0.55rem 0.65rem;
