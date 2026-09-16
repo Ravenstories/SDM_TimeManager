@@ -1,5 +1,5 @@
 import { createReport, reportCsv } from "./reports.js";
-import { duration, localDate } from "./domain.js";
+import { duration, decimalHours, localDate } from "./domain.js";
 
 export function setupReports({ getState, download, showDay }) {
   const $ = (id) => document.getElementById(id);
@@ -15,15 +15,19 @@ export function setupReports({ getState, download, showDay }) {
       anchor,
       Date.now(),
     );
-    const total = report.total.vd + report.total.sit;
-    $("report-vd").textContent = duration(report.total.vd);
-    $("report-sit").textContent = duration(report.total.sit);
-    $("report-total").textContent = duration(total);
+    const total = report.total.vd + report.total.sit + report.total.extra;
+    const format = $("time-format").value === "decimal" ? decimalHours : duration;
+    $("report-vd").textContent = format(report.total.vd);
+    $("report-sit").textContent = format(report.total.sit);
+    $("report-extra").textContent = format(report.total.extra);
+    $("report-extra-label").textContent =
+      getState().extraClock?.name || "Additional";
+    $("report-total").textContent = format(total);
     $("report-description").textContent =
-      `${report.start} to ${report.days.at(-1).date} · ${report.trackedDays} tracked days · ${total ? Math.round((report.total.vd / total) * 100) : 0}% VD / ${total ? Math.round((report.total.sit / total) * 100) : 0}% SIT`;
+      `${report.start} to ${report.days.at(-1).date} · ${report.trackedDays} tracked days · ${total ? Math.round((report.total.vd / total) * 100) : 0}% VD / ${total ? Math.round((report.total.sit / total) * 100) : 0}% SIT${report.total.extra ? ` / ${Math.round((report.total.extra / total) * 100)}% ${getState().extraClock?.name || "Additional"}` : ""}`;
     $("report-rows").replaceChildren();
     for (const day of report.days.filter(
-      (day) => day.vd + day.sit > 0 || day.notes,
+      (day) => day.vd + day.sit + day.extra > 0 || day.notes,
     )) {
       const row = document.createElement("tr"),
         dateCell = document.createElement("td"),
@@ -38,9 +42,10 @@ export function setupReports({ getState, download, showDay }) {
       dateCell.append(button);
       row.append(dateCell);
       for (const value of [
-        duration(day.vd),
-        duration(day.sit),
-        duration(day.vd + day.sit),
+        format(day.vd),
+        format(day.sit),
+        format(day.extra),
+        format(day.vd + day.sit + day.extra),
         day.notes,
       ]) {
         const cell = document.createElement("td");

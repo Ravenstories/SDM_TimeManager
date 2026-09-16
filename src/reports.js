@@ -28,7 +28,7 @@ export function reportRange(period, anchor) {
 export function createReport(state, period, anchor, now) {
   const range = reportRange(period, anchor);
   const days = [],
-    total = { vd: 0, sit: 0 };
+    total = { vd: 0, sit: 0, extra: 0 };
   const day = new Date(`${range.start}T00:00:00`);
   while (localDate(day) < range.end) {
     const date = localDate(day),
@@ -39,25 +39,27 @@ export function createReport(state, period, anchor, now) {
     days.push({ date, ...time, notes });
     total.vd += time.vd;
     total.sit += time.sit;
+    total.extra += time.extra;
     day.setDate(day.getDate() + 1);
   }
   return {
     ...range,
     days,
     total,
-    trackedDays: days.filter((day) => day.vd + day.sit > 0).length,
+    trackedDays: days.filter((day) => day.vd + day.sit + day.extra > 0).length,
   };
 }
 
 export function reportCsv(report) {
   return [
-    "Date,VD hours,SIT hours,Total hours,Notes",
+    "Date,VD hours,SIT hours,Additional hours,Total hours,Notes",
     ...report.days.map((day) =>
       [
         day.date,
         (day.vd / 3600000).toFixed(4),
         (day.sit / 3600000).toFixed(4),
-        ((day.vd + day.sit) / 3600000).toFixed(4),
+        (day.extra / 3600000).toFixed(4),
+        ((day.vd + day.sit + day.extra) / 3600000).toFixed(4),
         day.notes,
       ].join(","),
     ),

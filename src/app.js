@@ -32,6 +32,11 @@ const reports = setupReports({
 const announce = (message) => {
   $("announcement").textContent = message;
 };
+let timeFormat = localStorage.getItem(KEY + ".time-format") || "clock";
+const formatTime = (milliseconds) =>
+  timeFormat === "decimal" ? decimalHours(milliseconds) : duration(milliseconds);
+const roleName = (role) =>
+  role === "extra" ? state.extraClock?.name || "Additional" : role.toUpperCase();
 function fail(error) {
   $("error").hidden = false;
   $("error").textContent =
@@ -57,7 +62,7 @@ async function activate(role) {
   if (
     await change(
       (s) => switchRole(s, role, Date.now(), crypto.randomUUID()),
-      role ? `Tracking ${role.toUpperCase()}` : "Tracking paused",
+      role ? `Tracking ${roleName(role)}` : "Tracking paused",
     )
   ) {
     if (role) $("note-role").value = role;
@@ -76,27 +81,42 @@ function tick() {
     lastToday = today;
   }
   const t = totals(state, today, now),
-    total = t.vd + t.sit;
+    balanceTotal = t.vd + t.sit,
+    total =
+      t.vd +
+      t.sit +
+      (state.extraClock?.countsAsWork ? t.extra : 0);
   for (const role of ["vd", "sit"]) {
     const active = state.active?.role === role;
     $(role).setAttribute("aria-pressed", String(active));
-    $(role + "-time").textContent = duration(t[role]);
+    $(role + "-time").textContent = formatTime(t[role]);
     $(role + "-badge").textContent = active ? "● Tracking" : "Ready";
     $(role + "-action").textContent = active
       ? "Currently tracking"
       : `${state.active ? "Switch to" : "Start"} ${role.toUpperCase()} ↗`;
-    $(role + "-bar").style.width = `${total ? (t[role] / total) * 100 : 0}%`;
+    $(role + "-bar").style.width = `${balanceTotal ? (t[role] / balanceTotal) * 100 : 0}%`;
     $(role + "-percent").textContent =
-      `${total ? Math.round((t[role] / total) * 100) : 0}%`;
+      `${balanceTotal ? Math.round((t[role] / balanceTotal) * 100) : 0}%`;
+  }
+  if (state.extraClock) {
+    const active = state.active?.role === "extra";
+    $("extra").setAttribute("aria-pressed", String(active));
+    $("extra-time").textContent = formatTime(t.extra);
+    $("extra-badge").textContent = active ? "● Tracking" : "Ready";
+    $("extra-action").textContent = active
+      ? "Currently tracking"
+      : `${state.active ? "Switch to" : "Start"} ${state.extraClock.name} ↗`;
   }
   $("total").textContent =
-    `${Math.floor(total / 3600000)}h ${String(Math.floor(total / 60000) % 60).padStart(2, "0")}m total`;
+    timeFormat === "decimal"
+      ? `${decimalHours(total)} total`
+      : `${Math.floor(total / 3600000)}h ${String(Math.floor(total / 60000) % 60).padStart(2, "0")}m total`;
   $("pause").disabled = !state.active;
   $("work-status").textContent = state.active
-    ? `${state.active.role.toUpperCase()} is on the clock`
+    ? `${roleName(state.active.role)} is on the clock`
     : "Paused · Take your time";
   $("session-status").textContent = state.active
-    ? `Current session ${duration(now - state.active.start)} · continues in background`
+    ? `Current session ${formatTime(now - state.active.start)} · continues in background`
     : "Select a responsibility to begin.";
   $("today-label").textContent = new Date(now)
     .toLocaleDateString(undefined, {
@@ -106,13 +126,20 @@ function tick() {
     })
     .toUpperCase();
   document.title = state.active
-    ? `${duration(t[state.active.role])} · ${state.active.role.toUpperCase()} — SDM`
+    ? `${formatTime(t[state.active.role])} · ${roleName(state.active.role)} — SDM`
     : "Paused — SDM Time Manager";
   $("past-summary").hidden = selectedDay === today;
   if (selectedDay !== today) {
-    const past = totals(state, selectedDay, now);
+    const past = totals(state, selectedDay, now),
+      pastTotal =
+        past.vd +
+        past.sit +
+        (state.extraClock?.countsAsWork ? past.extra : 0),
+      extraSummary = state.extraClock
+        ? ` · ${state.extraClock.name} ${formatTime(past.extra)}`
+        : "";
     $("past-summary").textContent =
-      `VD ${duration(past.vd)} · SIT ${duration(past.sit)} · Total ${duration(past.vd + past.sit)}`;
+      `VD ${formatTime(past.vd)} · SIT ${formatTime(past.sit)}${extraSummary} · Work total ${formatTime(pastTotal)}`;
   }
 }
 function renderNotes() {
@@ -198,6 +225,24 @@ function editNote(row, note) {
   editor.focus();
 }
 function render() {
+  const hasExtra = Boolean(state.extraClock);
+  $("extra").hidden = !hasExtra;
+  $("extra-title").textContent = state.extraClock?.name || "Other";
+  $("extra-description").textContent = state.extraClock?.countsAsWork
+    ? "Additional work"
+    : "Excluded from work total";
+  $("note-extra-role").hidden = !hasExtra;
+  $("note-extra-role").textContent = state.extraClock?.name || "Additional clock";
+  $("time-entry-extra").hidden = !hasExtra;
+  $("time-entry-extra").textContent = state.extraClock?.name || "Additional clock";
+  if (!hasExtra && $("note-role").value === "extra")
+    $("note-role").value = "vd";
+  if (!hasExtra && $("time-entry-role").value === "extra")
+    $("time-entry-role").value = "vd";
+  document.querySelector(".clocks").classList.toggle("has-extra", hasExtra);
+  $("configure-clock").textContent = hasExtra
+    ? "Manage additional clock"
+    : "＋ Add clock";
   tick();
   renderNotes();
   reports.refresh();
@@ -232,6 +277,7 @@ document.addEventListener("keydown", (e) => {
     e.altKey ||
     $("settings").open ||
     $("reports").open ||
+    $("time-editor").open ||
     /INPUT|TEXTAREA|SELECT|BUTTON/.test(e.target.tagName) ||
     e.target.isContentEditable
   )
@@ -405,6 +451,7 @@ try {
   $("note-count").textContent = `${$("note").value.length} / 5000`;
   if (state.active) $("note-role").value = state.active.role;
   render();
+  renderExtraClockSettings();
   await dataView.refresh();
 } catch (error) {
   fail(error);

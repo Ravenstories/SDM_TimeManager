@@ -1,7 +1,8 @@
-export const ROLES = ["vd", "sit"];
+export const ROLES = ["vd", "sit", "extra"];
 export const emptyState = () => ({
   version: 1,
   active: null,
+  extraClock: null,
   sessions: [],
   notes: [],
 });
@@ -13,6 +14,13 @@ export function validateState(state) {
     state.version !== 1 ||
     !Array.isArray(state.sessions) ||
     !Array.isArray(state.notes) ||
+    (state.extraClock !== undefined &&
+      state.extraClock !== null &&
+      (!state.extraClock ||
+        typeof state.extraClock.name !== "string" ||
+        !state.extraClock.name.trim() ||
+        state.extraClock.name.length > 40 ||
+        typeof state.extraClock.countsAsWork !== "boolean")) ||
     (state.active !== null &&
       (!state.active ||
         !role(state.active.role) ||
@@ -103,7 +111,7 @@ export function localDate(now = Date.now()) {
 }
 export function totals(state, date, now) {
   const [start, end] = dayBounds(date);
-  const result = { vd: 0, sit: 0 };
+  const result = { vd: 0, sit: 0, extra: 0 };
   const sessions = state.active
     ? [...state.sessions, { ...state.active, end: now }]
     : state.sessions;
@@ -123,4 +131,7 @@ export function duration(ms) {
   ]
     .map((n) => String(n).padStart(2, "0"))
     .join(":");
+}
+export function decimalHours(ms) {
+  return `${(Math.max(0, ms) / 3600000).toFixed(2)} h`;
 }

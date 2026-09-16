@@ -20,6 +20,7 @@ test("switch and pause preserve mutually exclusive time", () => {
   assert.deepEqual(totals(s, localDate(now), now + 99999), {
     vd: 60000,
     sit: 30000,
+    extra: 0,
   });
   assert.equal(s.active, null);
 });
@@ -104,6 +105,24 @@ test("invalid records are rejected", () => {
 });
 test("formats long durations without wrapping", () =>
   assert.equal(duration(27 * 3600000 + 61000), "27:01:01"));
+test("formats decimal hours for time registration", () => {
+  assert.equal(decimalHours(90 * 60000), "1.50 h");
+  assert.equal(decimalHours(-1), "0.00 h");
+});
+test("validates configurable additional clocks", () => {
+  assert.doesNotThrow(() =>
+    validateState({
+      ...emptyState(),
+      extraClock: { name: "Break", countsAsWork: false },
+    }),
+  );
+  assert.throws(() =>
+    validateState({
+      ...emptyState(),
+      extraClock: { name: "", countsAsWork: false },
+    }),
+  );
+});
 test("local day boundaries follow calendar dates", () => {
   const [start, end] = dayBounds("2026-09-09");
   assert.equal(new Date(start).getHours(), 0);
