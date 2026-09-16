@@ -33,7 +33,7 @@
 }
 .report-totals {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
   margin: 22px 0;
 }
@@ -45,6 +45,9 @@
 }
 .report-totals > div:nth-child(2) {
   background: #f7eedc;
+}
+.report-totals > div:nth-child(3) {
+  background: #f0eef7;
 }
 .report-totals span {
   font-size: 11px;
@@ -231,6 +234,15 @@ a:focus-visible {
 .header-actions {
   display: flex;
   gap: 8px;
+  align-items: center;
+}
+.display-mode {
+  font-size: 10px;
+  color: #65766a;
+}
+.display-mode select {
+  max-width: 110px;
+  margin-left: 4px;
 }
 .quiet {
   background: transparent;
@@ -287,6 +299,9 @@ h3 {
   grid-template-columns: 1fr 1fr;
   gap: 20px;
 }
+.clocks.has-extra {
+  grid-template-columns: repeat(3, 1fr);
+}
 .clock {
   display: flex;
   flex-direction: column;
@@ -305,6 +320,11 @@ h3 {
   border-color: #e0d6bf;
   color: #6e5424;
 }
+.clock.extra {
+  background: #f0eef7;
+  border-color: #d5cfe4;
+  color: #51456f;
+}
 .clock[aria-pressed="true"] {
   background: #e0eee5;
   border: 2px solid #398068;
@@ -314,6 +334,10 @@ h3 {
 .clock.sit[aria-pressed="true"] {
   background: #f5e9cf;
   border-color: #a47b32;
+}
+.clock.extra[aria-pressed="true"] {
+  background: #e8e2f4;
+  border-color: #76639a;
 }
 .card-heading {
   display: flex;
@@ -340,6 +364,10 @@ h3 {
 .sit-dot {
   background: #b58c43;
 }
+.extra .role-title i,
+.extra-dot {
+  background: #76639a;
+}
 .role-description {
   display: block;
   font-size: 12px;
@@ -358,6 +386,9 @@ h3 {
 }
 .clock.sit[aria-pressed="true"] .badge {
   background: #886326;
+}
+.clock.extra[aria-pressed="true"] .badge {
+  background: #655086;
 }
 .time {
   font-size: clamp(38px, 5.5vw, 64px);
@@ -471,6 +502,15 @@ kbd {
   font-size: 11px;
   color: #65766a;
 }
+.day-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.day-actions button {
+  padding: 8px 10px;
+  font-size: 11px;
+}
 input,
 select {
   color: inherit;
@@ -523,6 +563,87 @@ select {
   line-height: 1.7;
   margin: 12px 0 0;
 }
+.note-hint {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.note-actions {
+  display: flex;
+}
+.note-editing {
+  display: block;
+}
+.note-editing textarea {
+  border: 1px solid #d0d9cf;
+  border-radius: 7px;
+  padding: 10px;
+  background: #fff;
+}
+.inline-editor-actions,
+.editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+#time-editor {
+  max-width: 680px;
+}
+.time-entry-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #dce2da;
+  font-size: 13px;
+}
+.time-entry-row strong {
+  margin-right: 8px;
+}
+.time-entry-row small {
+  color: #6a786e;
+  margin-left: 8px;
+}
+.time-entry-row div {
+  display: flex;
+  gap: 5px;
+}
+.time-entry-row button {
+  padding: 6px 9px;
+  font-size: 11px;
+}
+#time-entry-form {
+  border-top: 1px solid #dce2da;
+  margin-top: 22px;
+  padding-top: 20px;
+}
+.entry-fields {
+  display: grid;
+  grid-template-columns: 1fr 1.35fr 1.35fr;
+  gap: 10px;
+}
+.entry-fields label {
+  font-size: 11px;
+  color: #65766a;
+}
+.entry-fields input,
+.entry-fields select {
+  display: block;
+  width: 100%;
+  margin: 5px 0 0;
+  border: 1px solid #d0d9cf;
+}
+.form-error {
+  color: #9a3f2b;
+  background: #fff0e9;
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+.compact-empty {
+  padding: 14px;
+}
 .note-row {
   display: grid;
   grid-template-columns: 42px 48px 1fr auto;
@@ -544,6 +665,10 @@ select {
 .note-tag.sit {
   background: #f2e7d0;
   color: #75521d;
+}
+.note-tag.extra {
+  background: #ebe6f3;
+  color: #655086;
 }
 .note-row time {
   font-size: 11px;
@@ -613,6 +738,24 @@ dialog p {
 .data-actions button,
 .file-button {
   font-size: 12px;
+}
+.extra-clock-settings {
+  display: grid;
+  gap: 12px;
+}
+.extra-clock-settings > label:not(.check-label) {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+}
+.check-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.check-label input {
+  margin: 0;
 }
 .file-button input {
   display: block;
@@ -694,6 +837,12 @@ body.compact .timer-controls {
   .clocks {
     gap: 12px;
   }
+  .clocks.has-extra {
+    grid-template-columns: 1fr 1fr;
+  }
+  .clocks.has-extra .extra {
+    grid-column: 1 / -1;
+  }
   .clock {
     padding: 16px 14px 14px;
     border-radius: 13px;
@@ -738,6 +887,16 @@ body.compact .timer-controls {
     flex-direction: column;
     align-items: flex-end;
     gap: 3px;
+  }
+  .day-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .entry-fields {
+    grid-template-columns: 1fr;
+  }
+  .time-entry-row {
+    align-items: flex-start;
   }
   .note-row {
     gap: 8px;

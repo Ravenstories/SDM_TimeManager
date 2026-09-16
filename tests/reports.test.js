@@ -37,7 +37,10 @@ test("monthly report splits sessions at month boundaries and includes notes-only
   assert.equal(report.days.length, 30);
   assert.equal(report.days[1].notes, 1);
   assert.equal(report.trackedDays, 1);
-  assert.match(reportCsv(report), /2026-09-01,1.0000,0.0000,1.0000,0/);
+  assert.match(
+    reportCsv(report),
+    /2026-09-01,1.0000,0.0000,0.0000,1.0000,0/,
+  );
 });
 test("reports include an active session only until now", () => {
   const now = new Date(2026, 8, 9, 12).getTime();
@@ -50,4 +53,16 @@ test("reports include an active session only until now", () => {
     3600000,
   );
   assert.equal(createReport(state, "month", "2026-10-01", now).total.sit, 0);
+});
+test("reports and CSV include additional-clock time", () => {
+  const state = emptyState();
+  state.sessions.push({
+    id: "extra",
+    role: "extra",
+    start: new Date(2026, 8, 9, 9).getTime(),
+    end: new Date(2026, 8, 9, 10, 30).getTime(),
+  });
+  const report = createReport(state, "day", "2026-09-09", Date.now());
+  assert.equal(report.total.extra, 5400000);
+  assert.match(reportCsv(report), /0.0000,0.0000,1.5000,1.5000,0/);
 });
