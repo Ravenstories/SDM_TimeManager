@@ -12,6 +12,9 @@ import { KEY } from "./storage.js";
 import { IndexedRepository } from "./indexed-repository.js";
 import { setupData } from "./data-view.js";
 import { setupReports } from "./report-view.js";
+import { preferences } from "./preferences.js";
+import { assertUnchanged, localInputValue, inputTimestamp } from "./editing.js";
+import { setupUpdates } from "./updates.js";
 const $ = (id) => document.getElementById(id);
 let repository,
   state,
@@ -33,12 +36,16 @@ const reports = setupReports({
 const announce = (message) => {
   $("announcement").textContent = message;
 };
-let timeFormat = localStorage.getItem(KEY + ".time-format") || "clock";
+const warn = message => { $("preference-warning").hidden = false; $("preference-warning").textContent = message; };
+const prefs = preferences(warn);
+let timeFormat = prefs.get("time-format", "clock");
+let busy = false, noteEditing = null, entryOriginal = null;
 const formatTime = (milliseconds) =>
   timeFormat === "decimal" ? decimalHours(milliseconds) : duration(milliseconds);
 const roleName = (role) =>
   role === "extra" ? state.extraClock?.name || "Additional" : role.toUpperCase();
 function fail(error) {
+  $("save-status").textContent = "Records could not be saved or loaded";
   $("error").hidden = false;
   $("error").textContent =
     `Could not save or load your data: ${error.message} Your existing records have not been replaced. Export a backup if possible.`;
@@ -46,8 +53,11 @@ function fail(error) {
   $("data-error").textContent = error.message;
 }
 async function change(fn, message, options) {
+  if (busy) return false;
+  busy = true;
   try {
     state = await repository.update(fn, options);
+    $("save-status").textContent = "Saved on this device";
     $("error").hidden = true;
     $("data-error").hidden = true;
     render();
@@ -57,7 +67,7 @@ async function change(fn, message, options) {
   } catch (error) {
     fail(error);
     return false;
-  }
+  } finally { busy = false; }
 }
 async function activate(role) {
   if (
@@ -144,6 +154,7 @@ function tick() {
   }
 }
 function renderNotes() {
+  if (noteEditing) return;
   $("notes").replaceChildren();
   const notes = state.notes
     .filter((n) => localDate(n.at) === selectedDay)
@@ -193,6 +204,7 @@ function renderNotes() {
   }
 }
 function editNote(row, note) {
+  noteEditing = structuredClone(note);
   const editor = document.createElement("textarea");
   editor.value = note.text;
   editor.maxLength = 5000;
@@ -202,7 +214,7 @@ function editNote(row, note) {
   const cancel = document.createElement("button");
   cancel.type = "button";
   cancel.textContent = "Cancel";
-  cancel.onclick = renderNotes;
+  cancel.onclick = () => { if (confirm("Discard this unfinished edit?")) { noteEditing = null; renderNotes(); } };
   const save = document.createElement("button");
   save.type = "button";
   save.className = "primary";
@@ -210,15 +222,12 @@ function editNote(row, note) {
   save.onclick = async () => {
     const text = editor.value.trim();
     if (!text) return editor.focus();
-    await change(
-      (s) => ({
-        ...s,
-        notes: s.notes.map((item) =>
-          item.id === note.id ? { ...item, text } : item,
-        ),
-      }),
-      "Note updated",
-    );
+    const ok = await change(
+      s => {
+        assertUnchanged(s.notes.find(item => item.id === note.id), noteEditing);
+        return { ...s, notes: s.notes.map(item => item.id === note.id ? { ...item, text } : item) };
+      }, "Note updated");
+    if (ok) { noteEditing = null; renderNotes(); }
   };
   actions.append(cancel, save);
   row.replaceChildren(editor, actions);
@@ -258,6 +267,8 @@ function download(content, name, type) {
 }
 $("day").value = selectedDay;
 $("day").onchange = () => {
+  if (noteEditing && !confirm("Discard this unfinished edit?")) { $("day").value = selectedDay; return; }
+  noteEditing = null;
   if ($("day").value) {
     selectedDay = $("day").value;
     render();
@@ -310,7 +321,8 @@ $("note-form").onsubmit = async (e) => {
   );
   if (ok) {
     $("note").value = "";
-    localStorage.removeItem(KEY + ".draft");
+    prefs.set("draft", null);
+    $("note-count").textContent = "0 / 5000";
     selectedDay = localDate();
     $("day").value = selectedDay;
     renderNotes();
@@ -318,7 +330,7 @@ $("note-form").onsubmit = async (e) => {
 };
 $("note").oninput = () => {
   try {
-    localStorage.setItem(KEY + ".draft", $("note").value);
+    prefs.set("draft", $("note").value);
   } catch (error) {
     fail(error);
   }
@@ -327,17 +339,12 @@ $("note").oninput = () => {
 $("time-format").value = timeFormat;
 $("time-format").onchange = () => {
   timeFormat = $("time-format").value;
-  localStorage.setItem(KEY + ".time-format", timeFormat);
+  prefs.set("time-format", timeFormat);
   render();
 };
 
-const localInputValue = (timestamp) => {
-  const date = new Date(
-    timestamp - new Date(timestamp).getTimezoneOffset() * 60000,
-  );
-  return date.toISOString().slice(0, 16);
-};
 function resetTimeEntryForm() {
+  entryOriginal = null;
   const [start] = dayBounds(selectedDay);
   $("time-entry-id").value = "";
   $("time-entry-role").value = state.active?.role || "vd";
@@ -371,10 +378,11 @@ function renderTimeEditor() {
     const row = document.createElement("div");
     row.className = "time-entry-row";
     const summary = document.createElement("span");
-    summary.innerHTML = `<strong>${session.role.toUpperCase()}</strong> ${new Date(session.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}–${new Date(session.end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} <small>${duration(session.end - session.start)}</small>`;
+    summary.innerHTML = `<strong>${session.role.toUpperCase()}</strong> ${new Date(session.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}–${new Date(session.end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} <small>${formatTime(session.end - session.start)}</small>`;
     const edit = document.createElement("button");
     edit.textContent = "Edit";
     edit.onclick = () => {
+      entryOriginal = structuredClone(session);
       $("time-entry-id").value = session.id;
       $("time-entry-role").value = session.role;
       $("time-entry-start").value = localInputValue(session.start);
@@ -409,14 +417,17 @@ $("time-entry-form").onsubmit = async (event) => {
   const entry = {
     id: $("time-entry-id").value || crypto.randomUUID(),
     role: $("time-entry-role").value,
-    start: new Date($("time-entry-start").value).getTime(),
-    end: new Date($("time-entry-end").value).getTime(),
+    start: inputTimestamp($("time-entry-start").value, entryOriginal?.start),
+    end: inputTimestamp($("time-entry-end").value, entryOriginal?.end),
   };
   try {
     saveSession(state, entry);
     if (
       await change(
-        (current) => saveSession(current, entry),
+        (current) => {
+          if (entryOriginal) assertUnchanged(current.sessions.find(item => item.id === entryOriginal.id), entryOriginal);
+          return saveSession(current, entry);
+        },
         $("time-entry-id").value
           ? "Time entry updated"
           : "Time entry added",
@@ -506,7 +517,8 @@ if (channel) channel.onmessage = reloadState;
 try {
   repository = await new IndexedRepository().open();
   state = await repository.read();
-  $("note").value = localStorage.getItem(KEY + ".draft") || "";
+  $("save-status").textContent = "Saved on this device";
+  $("note").value = prefs.get("draft", "");
   $("note-count").textContent = `${$("note").value.length} / 5000`;
   if (state.active) $("note-role").value = state.active.role;
   render();
@@ -519,5 +531,4 @@ document.addEventListener("visibilitychange", () => {
   if (!document.hidden) reloadState();
 });
 setInterval(tick, 1000);
-if ("serviceWorker" in navigator)
-  navigator.serviceWorker.register("./sw.js").catch(() => {});
+setupUpdates({ hasDrafts: () => Boolean(noteEditing || $("time-editor").open || $("note").value), warn });

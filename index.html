@@ -42,6 +42,7 @@
         <span id="work-status" class="status">Ready when you are</span>
       </section>
       <div id="error" role="alert" hidden></div>
+      <p id="preference-warning" role="status" hidden></p>
       <button id="backup-reminder" class="backup-reminder" hidden>
         Keep your history safe · Export a backup
       </button>
@@ -160,8 +161,9 @@
         <div id="notes"></div>
       </section>
       <footer>
-        <span><i class="dot vd-dot"></i> Saved on this device</span
+        <span id="save-status">Loading records…</span
         ><span>1 / 2 to switch · Space to pause</span>
+        <span id="app-version"></span><button id="apply-update" hidden>Update available</button>
       </footer>
     </main>
     <div id="announcement" class="sr-only" role="status"></div>
@@ -222,7 +224,7 @@
         No time or notes recorded in this period.
       </p>
       <div class="report-footer">
-        <span class="hint"
+        <span class="hint" id="report-format-hint"
           >Hours : minutes : seconds · Monday starts each week.<br />Running
           time is included as of the last refresh.</span
         ><button id="report-csv">Export report CSV</button>
@@ -343,10 +345,10 @@
           </label>
           <label
             >Start
-            <input id="time-entry-start" type="datetime-local" required
+            <input id="time-entry-start" type="datetime-local" step="0.001" required
           /></label>
           <label
-            >End <input id="time-entry-end" type="datetime-local" required
+            >End <input id="time-entry-end" type="datetime-local" step="0.001" required
           /></label>
         </div>
         <p id="time-entry-error" class="form-error" role="alert" hidden></p>

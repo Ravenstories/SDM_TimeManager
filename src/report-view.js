@@ -17,6 +17,7 @@ export function setupReports({ getState, download, showDay }) {
     );
     const total = report.total.vd + report.total.sit + report.total.extra;
     const format = $("time-format").value === "decimal" ? decimalHours : duration;
+    $("report-format-hint").textContent = ($("time-format").value === "decimal" ? "Decimal hours" : "Hours : minutes : seconds") + " · Monday starts each week. Running time is included as of the last refresh.";
     $("report-vd").textContent = format(report.total.vd);
     $("report-sit").textContent = format(report.total.sit);
     $("report-extra").textContent = format(report.total.extra);
