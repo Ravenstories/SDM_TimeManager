@@ -6,7 +6,6 @@ import {
   saveSession,
   removeSession,
   dayBounds,
-  decimalHours,
 } from "./domain.js";
 import { KEY } from "./storage.js";
 import { IndexedRepository } from "./indexed-repository.js";
@@ -268,8 +267,7 @@ $("today").onclick = () => {
   $("day").value = selectedDay;
   render();
 };
-for (const role of ["vd", "sit", "extra"])
-  $(role).onclick = () => activate(role);
+for (const role of ["vd", "sit"]) $(role).onclick = () => activate(role);
 $("pause").onclick = () => activate(null);
 document.addEventListener("keydown", (e) => {
   if (
@@ -323,12 +321,6 @@ $("note").oninput = () => {
     fail(error);
   }
   $("note-count").textContent = `${$("note").value.length} / 5000`;
-};
-$("time-format").value = timeFormat;
-$("time-format").onchange = () => {
-  timeFormat = $("time-format").value;
-  localStorage.setItem(KEY + ".time-format", timeFormat);
-  render();
 };
 
 const localInputValue = (timestamp) => {
@@ -429,57 +421,6 @@ $("time-entry-form").onsubmit = async (event) => {
     $("time-entry-error").textContent = error.message;
     $("time-entry-error").hidden = false;
   }
-};
-function renderExtraClockSettings() {
-  $("extra-clock-name").value = state.extraClock?.name || "";
-  $("extra-clock-work").checked = state.extraClock?.countsAsWork ?? true;
-  $("remove-extra-clock").hidden = !state.extraClock;
-}
-$("save-extra-clock").onclick = async () => {
-  const name = $("extra-clock-name").value.trim();
-  if (!name) {
-    $("extra-clock-name").focus();
-    return;
-  }
-  if (
-    await change(
-      (current) => ({
-        ...current,
-        extraClock: {
-          name,
-          countsAsWork: $("extra-clock-work").checked,
-        },
-      }),
-      state.extraClock ? "Additional clock updated" : "Additional clock added",
-    )
-  )
-    renderExtraClockSettings();
-};
-$("remove-extra-clock").onclick = async () => {
-  if (
-    !confirm(
-      "Remove this clock? Its completed time and notes will remain in your history.",
-    )
-  )
-    return;
-  const now = Date.now();
-  await change(
-    (current) => {
-      const paused =
-        current.active?.role === "extra"
-          ? switchRole(current, null, now, crypto.randomUUID())
-          : current;
-      return { ...paused, extraClock: null };
-    },
-    "Additional clock removed",
-  );
-  renderExtraClockSettings();
-};
-$("data").addEventListener("click", renderExtraClockSettings);
-$("backup-reminder").addEventListener("click", renderExtraClockSettings);
-$("configure-clock").onclick = () => {
-  $("data").click();
-  $("extra-clock-name").focus();
 };
 $("compact").onclick = () => {
   const compact = document.body.classList.toggle("compact");

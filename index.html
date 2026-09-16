@@ -364,6 +364,51 @@
         before your first change today.
       </p>
     </dialog>
+    <dialog id="time-editor" aria-labelledby="time-editor-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">CORRECT YOUR HISTORY</p>
+          <h2 id="time-editor-title">Time entries</h2>
+        </div>
+        <button id="close-time-editor" aria-label="Close time editor">
+          ✕
+        </button>
+      </div>
+      <p id="time-editor-day"></p>
+      <div id="time-entry-list"></div>
+      <form id="time-entry-form">
+        <input id="time-entry-id" type="hidden" />
+        <div class="entry-fields">
+          <label
+            >Responsibility
+            <select id="time-entry-role">
+              <option value="vd">VD · SDM</option>
+              <option value="sit">SIT · Servicedesk</option>
+            </select>
+          </label>
+          <label
+            >Start
+            <input id="time-entry-start" type="datetime-local" required
+          /></label>
+          <label
+            >End <input id="time-entry-end" type="datetime-local" required
+          /></label>
+        </div>
+        <p id="time-entry-error" class="form-error" role="alert" hidden></p>
+        <div class="editor-actions">
+          <button type="button" id="cancel-time-entry" hidden>
+            Cancel edit
+          </button>
+          <button type="submit" class="primary" id="save-time-entry">
+            Add time entry
+          </button>
+        </div>
+      </form>
+      <p class="hint">
+        Entries cannot overlap. A recovery point is created automatically
+        before your first change today.
+      </p>
+    </dialog>
     <script type="module" src="./src/app.js"></script>
   </body>
 </html>

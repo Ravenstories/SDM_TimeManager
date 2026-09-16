@@ -10,7 +10,6 @@ import {
   dayBounds,
   saveSession,
   removeSession,
-  decimalHours,
 } from "../src/domain.js";
 test("switch and pause preserve mutually exclusive time", () => {
   const now = new Date(2026, 8, 9, 9).getTime();
