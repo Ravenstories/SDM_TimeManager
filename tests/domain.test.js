@@ -10,7 +10,11 @@ import {
   dayBounds,
   saveSession,
   removeSession,
+  decimalHours,
 } from "../src/domain.js";
+test("exports the decimal-hour formatter used by the time header", () => {
+  assert.equal(typeof decimalHours, "function");
+});
 test("switch and pause preserve mutually exclusive time", () => {
   const now = new Date(2026, 8, 9, 9).getTime();
   let s = emptyState();
