@@ -1,9 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createReport, reportRange, reportCsv } from "../src/reports.js";
+import {
+  createReport,
+  reportRange,
+  reportCsv,
+  legacyReportCsv,
+  adjacentPeriod,
+  csvCell,
+} from "../src/reports.js";
 import { emptyState } from "../src/domain.js";
-
-test("calendar periods handle Monday weeks, leap years, and year boundaries", () => {
+test("calendar ranges cover Monday weeks, leap years and year boundaries", () => {
   assert.deepEqual(reportRange("week", "2026-01-01"), {
     start: "2025-12-29",
     end: "2026-01-05",
@@ -17,52 +23,73 @@ test("calendar periods handle Monday weeks, leap years, and year boundaries", ()
     end: "2027-01-01",
   });
   assert.throws(() => reportRange("month", "2026-02-30"));
+  assert.equal(adjacentPeriod("month", "2026-03-31", -1), "2026-02-28");
 });
-test("monthly report splits sessions at month boundaries and includes notes-only days", () => {
+test("reports split intervals, retain notes-only days, and filter responsibilities", () => {
   const state = emptyState();
-  state.sessions.push({
-    id: "a",
-    role: "vd",
-    start: new Date(2026, 7, 31, 23).getTime(),
-    end: new Date(2026, 8, 1, 1).getTime(),
-  });
-  state.notes.push({
-    id: "n",
-    role: "sit",
-    at: new Date(2026, 8, 2, 10).getTime(),
-    text: "Planning",
-  });
+  state.sessions = [
+    {
+      id: "a",
+      responsibilityId: "vd",
+      start: new Date(2026, 7, 31, 23).getTime(),
+      end: new Date(2026, 8, 1, 1).getTime(),
+    },
+  ];
+  state.notes = [
+    {
+      id: "n",
+      responsibilityId: "sit",
+      at: new Date(2026, 8, 2, 10).getTime(),
+      text: "Planning",
+    },
+  ];
   const report = createReport(state, "month", "2026-09-09", Date.now());
-  assert.equal(report.total.vd, 3600000);
+  assert.equal(report.total.work, 3600000);
   assert.equal(report.days.length, 30);
   assert.equal(report.days[1].notes, 1);
   assert.equal(report.trackedDays, 1);
+  assert.equal(
+    createReport(state, "month", "2026-09-09", Date.now(), "vd").days[1].notes,
+    0,
+  );
   assert.match(
-    reportCsv(report),
+    legacyReportCsv(report),
     /2026-09-01,1.0000,0.0000,0.0000,1.0000,0/,
   );
 });
-test("reports include an active session only until now", () => {
-  const now = new Date(2026, 8, 9, 12).getTime();
-  const state = {
-    ...emptyState(),
-    active: { role: "sit", start: now - 3600000 },
-  };
+test("active time is bounded by report snapshot", () => {
+  const now = new Date(2026, 8, 9, 12).getTime(),
+    state = emptyState();
+  state.active = { id: "a", responsibilityId: "sit", start: now - 3600000 };
   assert.equal(
-    createReport(state, "year", "2026-09-09", now).total.sit,
+    createReport(state, "year", "2026-09-09", now).total.work,
     3600000,
   );
-  assert.equal(createReport(state, "month", "2026-10-01", now).total.sit, 0);
+  assert.equal(
+    createReport(state, "month", "2026-10-01", now).total.tracked,
+    0,
+  );
 });
-test("reports and CSV include additional-clock time", () => {
+test("work and nonwork reconcile in daily reports and exports", () => {
   const state = emptyState();
-  state.sessions.push({
-    id: "extra",
-    role: "extra",
-    start: new Date(2026, 8, 9, 9).getTime(),
-    end: new Date(2026, 8, 9, 10, 30).getTime(),
-  });
+  state.responsibilities[1].classification = "nonwork";
+  state.sessions = [
+    {
+      id: "a",
+      responsibilityId: "sit",
+      start: new Date(2026, 8, 9, 9).getTime(),
+      end: new Date(2026, 8, 9, 10, 30).getTime(),
+    },
+  ];
   const report = createReport(state, "day", "2026-09-09", Date.now());
-  assert.equal(report.total.extra, 5400000);
-  assert.match(reportCsv(report), /0.0000,0.0000,1.5000,1.5000,0/);
+  assert.equal(report.total.work, 0);
+  assert.equal(report.total.nonwork, 5400000);
+  assert.equal(report.total.tracked, 5400000);
+  assert.match(reportCsv(report), /"sit","SIT","nonwork","1.5000"/);
+  assert.match(reportCsv(report), /"Period total"/);
+});
+test("CSV quotes names and prevents spreadsheet formula execution", () => {
+  assert.equal(csvCell('Meeting, "A"'), '"Meeting, ""A"""');
+  assert.equal(csvCell("=1+1"), '"\'=1+1"');
+  assert.equal(csvCell("  @SUM(A1)"), '"\'  @SUM(A1)"');
 });

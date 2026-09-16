@@ -1,4 +1,4 @@
-import { emptyState, validateState } from "./domain.js";
+import { emptyState, validateState } from "./legacy-domain.js";
 export const KEY = "sdm-time-manager.v1";
 export class LocalRepository {
   constructor(storage, locks = navigator.locks) {

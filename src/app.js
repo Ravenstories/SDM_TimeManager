@@ -1,523 +1,361 @@
 import {
   duration,
+  decimalHours,
   localDate,
   totals,
   switchRole,
-  saveSession,
-  removeSession,
-  dayBounds,
-  decimalHours,
+  needsReview,
 } from "./domain.js";
-import { KEY } from "./storage.js";
 import { IndexedRepository } from "./indexed-repository.js";
-import { setupData } from "./data-view.js";
+import { KEY } from "./storage.js";
+import { preferences } from "./preferences.js";
+import { setupUpdates } from "./updates.js";
+import { $, el, button, errorAt } from "./ui.js";
+import { renderTotals, renderBreakdown } from "./summary-view.js";
+import { setupResponsibilities } from "./responsibility-view.js";
+import { setupNotes } from "./note-view.js";
+import { setupTime } from "./time-view.js";
 import { setupReports } from "./report-view.js";
-const $ = (id) => document.getElementById(id);
-let repository,
-  state,
+import { setupData } from "./data-view.js";
+
+let state,
+  repository,
   selectedDay = localDate(),
-  lastToday = localDate();
-const reports = setupReports({
+  lastToday = localDate(),
+  busy = false;
+const warn = (message) => errorAt("preference-warning", message);
+const prefs = preferences(warn);
+let timeFormat = prefs.get("time-format", "clock"),
+  compact = prefs.get("compact", "false") === "true";
+let dismissedReview = prefs.get("review-dismissed");
+if (!["clock", "decimal"].includes(timeFormat)) timeFormat = "clock";
+const format = (ms) =>
+  timeFormat === "decimal" ? decimalHours(ms) : duration(ms);
+const channel = "BroadcastChannel" in window ? new BroadcastChannel(KEY) : null;
+let controllers = [];
+const ctx = {
   getState: () => state,
+  getRepository: () => repository,
+  getDay: () => selectedDay,
+  format,
+  prefs,
+  warn,
+  portablePreferences: () => ({ timeFormat, compact }),
+  hasDrafts: () => busy || controllers.some((c) => c.hasDrafts?.()),
+  pause: () => activate(null),
+  showDay,
+  change,
   download,
-  showDay: (date) => {
-    selectedDay = date;
-    $("day").value = date;
-    document.body.classList.remove("compact");
-    $("compact").textContent = "Compact view";
-    $("compact").setAttribute("aria-pressed", "false");
+  applyPreferences(p) {
+    timeFormat = p.timeFormat;
+    compact = p.compact;
+    prefs.set("time-format", timeFormat);
+    prefs.set("compact", String(compact));
+    applyDisplay();
     render();
-    document.querySelector(".journal").scrollIntoView({ block: "start" });
   },
-});
-const announce = (message) => {
-  $("announcement").textContent = message;
 };
-let timeFormat = localStorage.getItem(KEY + ".time-format") || "clock";
-const formatTime = (milliseconds) =>
-  timeFormat === "decimal" ? decimalHours(milliseconds) : duration(milliseconds);
-const roleName = (role) =>
-  role === "extra" ? state.extraClock?.name || "Additional" : role.toUpperCase();
-function fail(error) {
-  $("error").hidden = false;
-  $("error").textContent =
-    `Could not save or load your data: ${error.message} Your existing records have not been replaced. Export a backup if possible.`;
-  $("data-error").hidden = false;
-  $("data-error").textContent = error.message;
+const responsibilities = setupResponsibilities(ctx),
+  notes = setupNotes(ctx),
+  time = setupTime(ctx),
+  reports = setupReports(ctx),
+  data = setupData(ctx);
+controllers = [responsibilities, notes, time];
+function applyDisplay() {
+  $("time-format").value = timeFormat;
+  document.body.classList.toggle("compact", compact);
+  $("compact").textContent = compact ? "Full view" : "Compact view";
+  $("compact").setAttribute("aria-pressed", String(compact));
 }
-async function change(fn, message, options) {
+async function change(fn, message, errorId = "error", options) {
+  if (busy) return false;
+  busy = true;
   try {
     state = await repository.update(fn, options);
-    $("error").hidden = true;
-    $("data-error").hidden = true;
+    errorAt(errorId, null);
+    errorAt("error", null);
+    $("save-status").textContent = "Saved on this device";
     render();
     channel?.postMessage("changed");
-    if (message) announce(message);
+    $("announcement").textContent = message;
     return true;
-  } catch (error) {
-    fail(error);
+  } catch (e) {
+    errorAt(errorId, e);
+    if (e.name !== "Error")
+      $("save-status").textContent = "Changes could not be saved";
+    try {
+      state = await repository.read();
+      render();
+    } catch (storageError) {
+      errorAt("error", "Records could not be loaded. " + storageError.message);
+      $("save-status").textContent = "Records unavailable";
+    }
     return false;
+  } finally {
+    busy = false;
   }
 }
-async function activate(role) {
-  if (
-    await change(
-      (s) => switchRole(s, role, Date.now(), crypto.randomUUID()),
-      role ? `Tracking ${roleName(role)}` : "Tracking paused",
-    )
-  ) {
-    if (role) $("note-role").value = role;
-  }
+async function activate(id) {
+  if (!state) return;
+  const name = state.responsibilities.find((r) => r.id === id)?.name;
+  await change(
+    (s) => switchRole(s, id, Date.now(), crypto.randomUUID()),
+    id ? "Tracking " + name : "Tracking paused",
+  );
+}
+let cards = [],
+  signature = "";
+function renderClocks() {
+  const available = state.responsibilities.filter(
+    (r) => !r.archived && r.classification !== "unresolved",
+  );
+  const next = JSON.stringify(available);
+  if (next === signature) return;
+  signature = next;
+  cards = [];
+  $("clocks").replaceChildren();
+  $("clocks").style.setProperty(
+    "--clock-columns",
+    String(Math.max(1, Math.min(3, available.length))),
+  );
+  available.slice(0, 3).forEach((r, index) => {
+    const card = button("", () => activate(r.id));
+    card.className = "clock";
+    card.dataset.responsibilityId = r.id;
+    // Stable default IDs preserve bookmarked automation while all behavior uses responsibility IDs.
+    card.id = ["vd", "sit", "extra"].includes(r.id) ? r.id : "clock-" + r.id;
+    const value = el("span", "", "clock-time"),
+      action = el("span", "", "clock-action");
+    card.append(
+      el("span", r.name, "clock-name"),
+      el(
+        "span",
+        r.classification === "work" ? "Work" : "Non-work",
+        "clock-kind",
+      ),
+      value,
+      el("span", "tracked today", "clock-caption"),
+      action,
+    );
+    $("clocks").append(card);
+    cards.push({ r, card, value, action, index });
+  });
+  if (!available.length)
+    $("clocks").append(
+      el(
+        "p",
+        "No available responsibilities. Add or restore one in Responsibilities.",
+        "empty",
+      ),
+    );
+  const selected = $("more-clocks").value;
+  $("more-clocks").replaceChildren();
+  for (const r of available.slice(3))
+    $("more-clocks").append(new Option(r.name, r.id));
+  if ([...$("more-clocks").options].some((o) => o.value === selected))
+    $("more-clocks").value = selected;
+  $("more-clocks-label").hidden = available.length <= 3;
+  $("start-selected").hidden = available.length <= 3;
 }
 function tick() {
   if (!state) return;
   const now = Date.now(),
     today = localDate(now);
   if (today !== lastToday) {
-    if (selectedDay === lastToday) {
-      selectedDay = today;
-      $("day").value = today;
-      renderNotes();
-    }
+    if (selectedDay === lastToday) showDay(today);
     lastToday = today;
   }
-  const t = totals(state, today, now),
-    balanceTotal = t.vd + t.sit,
-    total =
-      t.vd +
-      t.sit +
-      (state.extraClock?.countsAsWork ? t.extra : 0);
-  for (const role of ["vd", "sit"]) {
-    const active = state.active?.role === role;
-    $(role).setAttribute("aria-pressed", String(active));
-    $(role + "-time").textContent = formatTime(t[role]);
-    $(role + "-badge").textContent = active ? "● Tracking" : "Ready";
-    $(role + "-action").textContent = active
-      ? "Currently tracking"
-      : `${state.active ? "Switch to" : "Start"} ${role.toUpperCase()} ↗`;
-    $(role + "-bar").style.width = `${balanceTotal ? (t[role] / balanceTotal) * 100 : 0}%`;
-    $(role + "-percent").textContent =
-      `${balanceTotal ? Math.round((t[role] / balanceTotal) * 100) : 0}%`;
+  const todayTotals = totals(state, today, now);
+  for (const { r, card, value, action, index } of cards) {
+    const active = state.active?.responsibilityId === r.id;
+    card.setAttribute("aria-pressed", String(active));
+    value.textContent = format(todayTotals.byResponsibility[r.id]);
+    action.textContent =
+      (active
+        ? "● Tracking"
+        : (state.active ? "Switch to " : "Start ") + r.name) +
+      " · " +
+      (index + 1);
   }
-  if (state.extraClock) {
-    const active = state.active?.role === "extra";
-    $("extra").setAttribute("aria-pressed", String(active));
-    $("extra-time").textContent = formatTime(t.extra);
-    $("extra-badge").textContent = active ? "● Tracking" : "Ready";
-    $("extra-action").textContent = active
-      ? "Currently tracking"
-      : `${state.active ? "Switch to" : "Start"} ${state.extraClock.name} ↗`;
-  }
-  $("total").textContent =
-    timeFormat === "decimal"
-      ? `${decimalHours(total)} total`
-      : `${Math.floor(total / 3600000)}h ${String(Math.floor(total / 60000) % 60).padStart(2, "0")}m total`;
-  $("pause").disabled = !state.active;
-  $("work-status").textContent = state.active
-    ? `${roleName(state.active.role)} is on the clock`
+  const activeRole = state.responsibilities.find(
+    (r) => r.id === state.active?.responsibilityId,
+  );
+  $("work-status").textContent = activeRole
+    ? activeRole.name + " is on the clock"
     : "Paused · Take your time";
+  $("pause").disabled = !state.active;
+  $("stop-at").disabled = !state.active;
   $("session-status").textContent = state.active
-    ? `Current session ${formatTime(now - state.active.start)} · continues in background`
+    ? "Current session " +
+      format(Math.max(0, now - state.active.start)) +
+      " · continues until you pause"
     : "Select a responsibility to begin.";
-  $("today-label").textContent = new Date(now)
-    .toLocaleDateString(undefined, {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-    })
-    .toUpperCase();
+  $("today-label").textContent =
+    "TODAY'S LIVE TIMER · " +
+    new Date(now)
+      .toLocaleDateString(undefined, {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      })
+      .toUpperCase();
   document.title = state.active
-    ? `${formatTime(t[state.active.role])} · ${roleName(state.active.role)} — SDM`
+    ? format(todayTotals.byResponsibility[state.active.responsibilityId]) +
+      " · " +
+      activeRole.name +
+      " — SDM"
     : "Paused — SDM Time Manager";
-  $("past-summary").hidden = selectedDay === today;
-  if (selectedDay !== today) {
-    const past = totals(state, selectedDay, now),
-      pastTotal =
-        past.vd +
-        past.sit +
-        (state.extraClock?.countsAsWork ? past.extra : 0),
-      extraSummary = state.extraClock
-        ? ` · ${state.extraClock.name} ${formatTime(past.extra)}`
-        : "";
-    $("past-summary").textContent =
-      `VD ${formatTime(past.vd)} · SIT ${formatTime(past.sit)}${extraSummary} · Work total ${formatTime(pastTotal)}`;
-  }
-}
-function renderNotes() {
-  $("notes").replaceChildren();
-  const notes = state.notes
-    .filter((n) => localDate(n.at) === selectedDay)
-    .sort((a, b) => b.at - a.at);
-  if (!notes.length) {
-    const empty = document.createElement("p");
-    empty.className = "empty";
-    empty.textContent =
-      selectedDay === localDate()
-        ? "A little context goes a long way. Add your first note for today."
-        : "No notes saved for this day.";
-    $("notes").append(empty);
-  }
-  for (const note of notes) {
-    const row = document.createElement("article");
-    row.className = "note-row";
-    const tag = document.createElement("span");
-    tag.className = `note-tag ${note.role}`;
-    tag.textContent = note.role.toUpperCase();
-    const time = document.createElement("time");
-    time.dateTime = new Date(note.at).toISOString();
-    time.textContent = new Date(note.at).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-    const content = document.createElement("p");
-    content.textContent = note.text;
-    const actions = document.createElement("div");
-    actions.className = "note-actions";
-    const edit = document.createElement("button");
-    edit.textContent = "Edit";
-    edit.setAttribute("aria-label", `Edit note: ${note.text.slice(0, 40)}`);
-    edit.onclick = () => editNote(row, note);
-    const remove = document.createElement("button");
-    remove.textContent = "Delete";
-    remove.setAttribute("aria-label", `Delete note: ${note.text.slice(0, 40)}`);
-    remove.onclick = () => {
-      if (confirm("Delete this note?"))
-        change(
-          (s) => ({ ...s, notes: s.notes.filter((n) => n.id !== note.id) }),
-          "Note deleted",
-        );
-    };
-    actions.append(edit, remove);
-    row.append(tag, time, content, actions);
-    $("notes").append(row);
-  }
-}
-function editNote(row, note) {
-  const editor = document.createElement("textarea");
-  editor.value = note.text;
-  editor.maxLength = 5000;
-  editor.setAttribute("aria-label", "Edit note text");
-  const actions = document.createElement("div");
-  actions.className = "inline-editor-actions";
-  const cancel = document.createElement("button");
-  cancel.type = "button";
-  cancel.textContent = "Cancel";
-  cancel.onclick = renderNotes;
-  const save = document.createElement("button");
-  save.type = "button";
-  save.className = "primary";
-  save.textContent = "Save";
-  save.onclick = async () => {
-    const text = editor.value.trim();
-    if (!text) return editor.focus();
-    await change(
-      (s) => ({
-        ...s,
-        notes: s.notes.map((item) =>
-          item.id === note.id ? { ...item, text } : item,
-        ),
-      }),
-      "Note updated",
-    );
-  };
-  actions.append(cancel, save);
-  row.replaceChildren(editor, actions);
-  row.classList.add("note-editing");
-  editor.focus();
+  const selectedTotals = totals(state, selectedDay, now);
+  renderTotals($("day-totals"), selectedTotals, format);
+  renderBreakdown($("day-breakdown"), state, selectedTotals, format);
+  $("viewing-day").textContent =
+    selectedDay === today
+      ? "Today · " + selectedDay
+      : "Reviewing " +
+        selectedDay +
+        " · The live timer above always shows today.";
+  $("long-review").hidden =
+    !needsReview(state.active, now) || dismissedReview === state.active?.id;
+  if (!$("long-review").hidden)
+    $("review-description").textContent =
+      activeRole.name +
+      " has been running since " +
+      new Date(state.active.start).toLocaleString() +
+      ". Keep the time or choose when it should have stopped.";
+  time.tick?.();
 }
 function render() {
-  const hasExtra = Boolean(state.extraClock);
-  $("extra").hidden = !hasExtra;
-  $("extra-title").textContent = state.extraClock?.name || "Other";
-  $("extra-description").textContent = state.extraClock?.countsAsWork
-    ? "Additional work"
-    : "Excluded from work total";
-  $("note-extra-role").hidden = !hasExtra;
-  $("note-extra-role").textContent = state.extraClock?.name || "Additional clock";
-  $("time-entry-extra").hidden = !hasExtra;
-  $("time-entry-extra").textContent = state.extraClock?.name || "Additional clock";
-  if (!hasExtra && $("note-role").value === "extra")
-    $("note-role").value = "vd";
-  if (!hasExtra && $("time-entry-role").value === "extra")
-    $("time-entry-role").value = "vd";
-  document.querySelector(".clocks").classList.toggle("has-extra", hasExtra);
-  $("configure-clock").textContent = hasExtra
-    ? "Manage additional clock"
-    : "＋ Add clock";
+  if (!state) return;
+  renderClocks();
+  notes.render();
+  time.render();
+  responsibilities.render();
+  reports.render();
   tick();
-  renderNotes();
-  reports.refresh();
+}
+function showDay(date) {
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+    !Number.isFinite(new Date(date + "T12:00:00").getTime())
+  )
+    return;
+  selectedDay = date;
+  $("day").value = date;
+  if (compact) {
+    compact = false;
+    prefs.set("compact", "false");
+    applyDisplay();
+  }
+  if (state) {
+    notes.dayChanged();
+    render();
+  }
 }
 function download(content, name, type) {
-  const url = URL.createObjectURL(new Blob([content], { type }));
-  const link = document.createElement("a");
+  const url = URL.createObjectURL(new Blob([content], { type })),
+    link = document.createElement("a");
   link.href = url;
   link.download = name;
+  document.body.append(link);
   link.click();
+  link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 $("day").value = selectedDay;
-$("day").onchange = () => {
-  if ($("day").value) {
-    selectedDay = $("day").value;
-    render();
-  }
-};
-$("today").onclick = () => {
-  selectedDay = localDate();
-  $("day").value = selectedDay;
-  render();
-};
-for (const role of ["vd", "sit", "extra"])
-  $(role).onclick = () => activate(role);
-$("pause").onclick = () => activate(null);
-document.addEventListener("keydown", (e) => {
-  if (
-    e.repeat ||
-    e.ctrlKey ||
-    e.metaKey ||
-    e.altKey ||
-    $("settings").open ||
-    $("reports").open ||
-    $("time-editor").open ||
-    /INPUT|TEXTAREA|SELECT|BUTTON/.test(e.target.tagName) ||
-    e.target.isContentEditable
-  )
-    return;
-  if (e.key === "1" || e.key === "2") {
-    e.preventDefault();
-    activate(e.key === "1" ? "vd" : "sit");
-  }
-  if (e.code === "Space") {
-    e.preventDefault();
-    activate(null);
-  }
-});
-$("note-form").onsubmit = async (e) => {
-  e.preventDefault();
-  const text = $("note").value.trim(),
-    role = $("note-role").value;
-  if (!text) return;
-  const ok = await change(
-    (s) => ({
-      ...s,
-      notes: [
-        ...s.notes,
-        { id: crypto.randomUUID(), at: Date.now(), role, text },
-      ],
-    }),
-    "Note saved",
-  );
-  if (ok) {
-    $("note").value = "";
-    localStorage.removeItem(KEY + ".draft");
-    selectedDay = localDate();
-    $("day").value = selectedDay;
-    renderNotes();
-  }
-};
-$("note").oninput = () => {
-  try {
-    localStorage.setItem(KEY + ".draft", $("note").value);
-  } catch (error) {
-    fail(error);
-  }
-  $("note-count").textContent = `${$("note").value.length} / 5000`;
-};
-$("time-format").value = timeFormat;
+$("day").onchange = () => showDay($("day").value);
+$("today").onclick = () => showDay(localDate());
+for (const [id, delta] of [
+  ["previous-day", -1],
+  ["next-day", 1],
+])
+  $(id).onclick = () => {
+    const d = new Date(selectedDay + "T12:00:00");
+    d.setDate(d.getDate() + delta);
+    showDay(localDate(d));
+  };
 $("time-format").onchange = () => {
   timeFormat = $("time-format").value;
-  localStorage.setItem(KEY + ".time-format", timeFormat);
+  prefs.set("time-format", timeFormat);
   render();
 };
-
-const localInputValue = (timestamp) => {
-  const date = new Date(
-    timestamp - new Date(timestamp).getTimezoneOffset() * 60000,
-  );
-  return date.toISOString().slice(0, 16);
-};
-function resetTimeEntryForm() {
-  const [start] = dayBounds(selectedDay);
-  $("time-entry-id").value = "";
-  $("time-entry-role").value = state.active?.role || "vd";
-  $("time-entry-start").value = localInputValue(start + 9 * 3600000);
-  $("time-entry-end").value = localInputValue(start + 10 * 3600000);
-  $("save-time-entry").textContent = "Add time entry";
-  $("cancel-time-entry").hidden = true;
-  $("time-entry-error").hidden = true;
-}
-function renderTimeEditor() {
-  $("time-editor-day").textContent = new Date(
-    `${selectedDay}T12:00:00`,
-  ).toLocaleDateString(undefined, {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-  const [dayStart, dayEnd] = dayBounds(selectedDay);
-  const entries = state.sessions.filter(
-    (session) => session.start < dayEnd && session.end > dayStart,
-  );
-  $("time-entry-list").replaceChildren();
-  if (!entries.length) {
-    const empty = document.createElement("p");
-    empty.className = "empty compact-empty";
-    empty.textContent = "No completed time entries on this day.";
-    $("time-entry-list").append(empty);
-  }
-  for (const session of entries) {
-    const row = document.createElement("div");
-    row.className = "time-entry-row";
-    const summary = document.createElement("span");
-    summary.innerHTML = `<strong>${session.role.toUpperCase()}</strong> ${new Date(session.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}–${new Date(session.end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} <small>${duration(session.end - session.start)}</small>`;
-    const edit = document.createElement("button");
-    edit.textContent = "Edit";
-    edit.onclick = () => {
-      $("time-entry-id").value = session.id;
-      $("time-entry-role").value = session.role;
-      $("time-entry-start").value = localInputValue(session.start);
-      $("time-entry-end").value = localInputValue(session.end);
-      $("save-time-entry").textContent = "Save changes";
-      $("cancel-time-entry").hidden = false;
-      $("time-entry-start").focus();
-    };
-    const remove = document.createElement("button");
-    remove.textContent = "Delete";
-    remove.onclick = async () => {
-      if (confirm("Delete this time entry?")) {
-        await change((s) => removeSession(s, session.id), "Time entry deleted");
-        renderTimeEditor();
-      }
-    };
-    const actions = document.createElement("div");
-    actions.append(edit, remove);
-    row.append(summary, actions);
-    $("time-entry-list").append(row);
-  }
-}
-$("manage-time").onclick = () => {
-  resetTimeEntryForm();
-  renderTimeEditor();
-  $("time-editor").showModal();
-};
-$("close-time-editor").onclick = () => $("time-editor").close();
-$("cancel-time-entry").onclick = resetTimeEntryForm;
-$("time-entry-form").onsubmit = async (event) => {
-  event.preventDefault();
-  const entry = {
-    id: $("time-entry-id").value || crypto.randomUUID(),
-    role: $("time-entry-role").value,
-    start: new Date($("time-entry-start").value).getTime(),
-    end: new Date($("time-entry-end").value).getTime(),
-  };
-  try {
-    saveSession(state, entry);
-    if (
-      await change(
-        (current) => saveSession(current, entry),
-        $("time-entry-id").value
-          ? "Time entry updated"
-          : "Time entry added",
-      )
-    ) {
-      resetTimeEntryForm();
-      renderTimeEditor();
-    }
-  } catch (error) {
-    $("time-entry-error").textContent = error.message;
-    $("time-entry-error").hidden = false;
-  }
-};
-function renderExtraClockSettings() {
-  $("extra-clock-name").value = state.extraClock?.name || "";
-  $("extra-clock-work").checked = state.extraClock?.countsAsWork ?? true;
-  $("remove-extra-clock").hidden = !state.extraClock;
-}
-$("save-extra-clock").onclick = async () => {
-  const name = $("extra-clock-name").value.trim();
-  if (!name) {
-    $("extra-clock-name").focus();
-    return;
-  }
-  if (
-    await change(
-      (current) => ({
-        ...current,
-        extraClock: {
-          name,
-          countsAsWork: $("extra-clock-work").checked,
-        },
-      }),
-      state.extraClock ? "Additional clock updated" : "Additional clock added",
-    )
-  )
-    renderExtraClockSettings();
-};
-$("remove-extra-clock").onclick = async () => {
-  if (
-    !confirm(
-      "Remove this clock? Its completed time and notes will remain in your history.",
-    )
-  )
-    return;
-  const now = Date.now();
-  await change(
-    (current) => {
-      const paused =
-        current.active?.role === "extra"
-          ? switchRole(current, null, now, crypto.randomUUID())
-          : current;
-      return { ...paused, extraClock: null };
-    },
-    "Additional clock removed",
-  );
-  renderExtraClockSettings();
-};
-$("data").addEventListener("click", renderExtraClockSettings);
-$("backup-reminder").addEventListener("click", renderExtraClockSettings);
-$("configure-clock").onclick = () => {
-  $("data").click();
-  $("extra-clock-name").focus();
-};
 $("compact").onclick = () => {
-  const compact = document.body.classList.toggle("compact");
-  $("compact").textContent = compact ? "Full view" : "Compact view";
-  $("compact").setAttribute("aria-pressed", String(compact));
+  compact = !compact;
+  prefs.set("compact", String(compact));
+  applyDisplay();
 };
-const channel = "BroadcastChannel" in window ? new BroadcastChannel(KEY) : null;
-const dataView = setupData({
-  getRepository: () => repository,
-  change,
-  download,
-  fail,
+$("pause").onclick = () => activate(null);
+$("start-selected").onclick = () => activate($("more-clocks").value);
+$("stop-at").onclick = time.openActive;
+$("review-choose").onclick = time.openActive;
+$("review-stop").onclick = () => activate(null);
+$("keep-tracking").onclick = () => {
+  if (state?.active) {
+    dismissedReview = state.active.id;
+    prefs.set("review-dismissed", dismissedReview);
+  }
+  tick();
+};
+$("help").onclick = () => $("help-dialog").showModal();
+$("close-help").onclick = () => $("help-dialog").close();
+document.addEventListener("keydown", (event) => {
+  if (
+    event.repeat ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.altKey ||
+    document.querySelector("dialog[open]") ||
+    /INPUT|TEXTAREA|SELECT|BUTTON/.test(event.target.tagName) ||
+    event.target.isContentEditable
+  )
+    return;
+  const index = Number(event.key) - 1;
+  if (index >= 0 && index <= 2 && cards[index]) {
+    event.preventDefault();
+    activate(cards[index].r.id);
+  } else if (event.code === "Space") {
+    event.preventDefault();
+    activate(null);
+  }
 });
 async function reloadState() {
   if (!repository) return;
   try {
     state = await repository.read();
     render();
-  } catch (error) {
-    fail(error);
+  } catch (e) {
+    errorAt(
+      "error",
+      "Records could not be loaded. " +
+        e.message +
+        " Reopen the app after closing older windows.",
+    );
+    $("save-status").textContent = "Records unavailable";
   }
 }
 if (channel) channel.onmessage = reloadState;
-try {
-  repository = await new IndexedRepository().open();
-  state = await repository.read();
-  $("note").value = localStorage.getItem(KEY + ".draft") || "";
-  $("note-count").textContent = `${$("note").value.length} / 5000`;
-  if (state.active) $("note-role").value = state.active.role;
-  render();
-  renderExtraClockSettings();
-  await dataView.refresh();
-} catch (error) {
-  fail(error);
-}
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) reloadState();
 });
+window.addEventListener("beforeunload", (event) => {
+  if (ctx.hasDrafts()) {
+    event.preventDefault();
+    event.returnValue = "";
+  }
+});
+applyDisplay();
+try {
+  repository = await new IndexedRepository().open();
+  state = await repository.read();
+  $("save-status").textContent = "Saved on this device";
+  render();
+  await data.refresh();
+} catch (e) {
+  errorAt(
+    "error",
+    e.message +
+      " Existing records have not been replaced. Close older app windows and reopen this app.",
+  );
+  $("save-status").textContent = "Records unavailable";
+}
 setInterval(tick, 1000);
-if ("serviceWorker" in navigator)
-  navigator.serviceWorker.register("./sw.js").catch(() => {});
+setupUpdates({ hasDrafts: ctx.hasDrafts, warn });

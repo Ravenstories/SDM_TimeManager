@@ -1,133 +1,188 @@
 import { localDate } from "./domain.js";
-import { restoreBackup, sessionCsv } from "./backup.js";
-
-export function setupData({ getRepository, change, download, fail }) {
-  const $ = (id) => document.getElementById(id);
+import { restoreBackup, sessionCsv, backupSummary } from "./backup.js";
+import { assertUnchanged } from "./editing.js";
+import { $, el, errorAt, dateTime } from "./ui.js";
+export function setupData(ctx) {
+  let pending = null,
+    baseline = null;
   async function refresh() {
     try {
-      const repository = getRepository();
-      if (!repository) return;
-      const { meta, checkpoints } = await repository.details();
+      if (!ctx.getRepository()) return;
+      const { meta, checkpoints } = await ctx.getRepository().details();
       const persistent = await navigator.storage?.persisted?.();
       $("storage-status").textContent = persistent
-        ? "Browser storage protection granted."
+        ? "Browser storage protection granted. Keep an external backup."
         : "Browser storage protection is not granted. Keep an external backup.";
       $("protect-storage").disabled =
         Boolean(persistent) || !navigator.storage?.persist;
       $("backup-status").textContent = meta.lastExportAt
-        ? `Last backup export requested ${new Date(meta.lastExportAt).toLocaleString()}. Keep the downloaded file somewhere safe.`
-        : "No backup exported yet. Download one to protect your work outside this browser.";
-      const due =
-        !meta.lastExportAt || Date.now() - meta.lastExportAt > 7 * 86400000;
-      $("backup-reminder").hidden = !due;
+        ? "Last backup download requested " +
+          dateTime(meta.lastExportAt) +
+          ". Keep the file somewhere safe."
+        : "No backup download requested yet.";
+      $("backup-reminder").hidden = Boolean(
+        meta.lastExportAt && Date.now() - meta.lastExportAt < 7 * 86400000,
+      );
+      const old = $("recovery-point").value;
       $("recovery-point").replaceChildren();
-      for (const point of checkpoints.toReversed()) {
-        const option = document.createElement("option");
-        option.value = point.id;
-        option.textContent = `${new Date(point.at).toLocaleString()} · ${point.reason}`;
-        $("recovery-point").append(option);
-      }
+      for (const point of checkpoints.toReversed())
+        $("recovery-point").append(
+          new Option(dateTime(point.at) + " · " + point.reason, point.id),
+        );
+      if ([...$("recovery-point").options].some((o) => o.value === old))
+        $("recovery-point").value = old;
       $("restore-point").disabled = !checkpoints.length;
       $("recovery-empty").hidden = Boolean(checkpoints.length);
-    } catch (error) {
-      fail(error);
+    } catch (e) {
+      errorAt("data-error", e);
     }
   }
-  $("data").onclick = () => {
-    $("data-error").hidden = true;
+  async function preview(backup) {
+    const state = restoreBackup(backup, Date.now(), crypto.randomUUID());
+    pending = state;
+    baseline = await ctx.getRepository().read();
+    const summary = backupSummary(state),
+      current = backupSummary(baseline);
+    $("restore-description").replaceChildren(
+      el(
+        "p",
+        "Backup exported " +
+          dateTime(backup.exportedAt) +
+          ". " +
+          summary.range +
+          ".",
+      ),
+      el(
+        "p",
+        summary.sessions +
+          " sessions, " +
+          summary.notes +
+          " notes, " +
+          summary.responsibilities +
+          " responsibilities replace " +
+          current.sessions +
+          " sessions and " +
+          current.notes +
+          " notes.",
+      ),
+      el(
+        "p",
+        "Responsibilities: " +
+          state.responsibilities
+            .map((r) => r.name + " (" + r.classification + ")")
+            .join(", "),
+      ),
+      el(
+        "p",
+        backup.state.active
+          ? "The imported running timer stops at the backup export time."
+          : "The restored timer will be paused.",
+      ),
+      el(
+        "p",
+        "Current records are preserved in a recovery point. Display preferences come from the backup. Unfinished drafts must be saved or cancelled first.",
+      ),
+    );
+    $("restore-preview").hidden = false;
+  }
+  const open = () => {
+    errorAt("data-error", null);
     $("settings").showModal();
     refresh();
   };
-  $("backup-reminder").onclick = () => {
-    $("settings").showModal();
-    refresh();
-  };
+  $("data").onclick = open;
+  $("backup-reminder").onclick = open;
   $("close-settings").onclick = () => $("settings").close();
   $("protect-storage").onclick = async () => {
     try {
       await navigator.storage.persist();
       await refresh();
-    } catch (error) {
-      fail(error);
+    } catch (e) {
+      errorAt("data-error", e);
     }
   };
   $("export").onclick = async () => {
     try {
-      const repository = getRepository(),
-        state = await repository.read();
-      download(
+      const state = await ctx.getRepository().read();
+      state.preferences = ctx.portablePreferences();
+      ctx.download(
         JSON.stringify({ exportedAt: Date.now(), state }, null, 2),
-        `sdm-backup-${localDate()}.json`,
+        "sdm-backup-" + localDate() + ".json",
         "application/json",
       );
-      await repository.recordExport();
+      await ctx.getRepository().recordExport();
       await refresh();
-    } catch (error) {
-      fail(error);
+    } catch (e) {
+      errorAt("data-error", e);
     }
   };
-  $("csv").onclick = async () => {
-    try {
-      download(
-        sessionCsv(await getRepository().read(), Date.now()),
-        `sdm-time-${localDate()}.csv`,
-        "text/csv",
-      );
-    } catch (error) {
-      fail(error);
-    }
-  };
-  $("import").onchange = async () => {
-    const file = $("import").files[0];
-    if (!file) return;
-    try {
-      if (file.size > 50000000)
-        throw new Error("Backup is too large (maximum 50 MB).");
-      const imported = restoreBackup(
-        JSON.parse(await file.text()),
-        Date.now(),
-        crypto.randomUUID(),
-      );
-      if (
-        confirm(
-          `Restore ${imported.sessions.length} sessions and ${imported.notes.length} notes? This replaces current records and pauses tracking. A recovery point of the current records will be saved first.`,
-        )
-      ) {
-        await change(() => imported, "Backup restored. Tracking paused.", {
-          checkpoint: true,
-        });
-        await refresh();
+  for (const [id, legacy] of [
+    ["csv", false],
+    ["legacy-csv", true],
+  ])
+    $(id).onclick = async () => {
+      try {
+        ctx.download(
+          sessionCsv(await ctx.getRepository().read(), Date.now(), legacy),
+          "sdm-sessions-" + (legacy ? "legacy" : "v2") + ".csv",
+          "text/csv",
+        );
+      } catch (e) {
+        errorAt("data-error", e);
       }
-    } catch (error) {
-      fail(error);
+    };
+  $("import").onchange = async () => {
+    try {
+      const file = $("import").files[0];
+      if (!file) return;
+      if (file.size > 50000000)
+        throw Error("Backup is too large (maximum 50 MB).");
+      await preview(JSON.parse(await file.text()));
+      errorAt("data-error", null);
+    } catch (e) {
+      pending = null;
+      $("restore-preview").hidden = true;
+      errorAt("data-error", e);
     } finally {
       $("import").value = "";
     }
   };
   $("restore-point").onclick = async () => {
     try {
-      const { checkpoints } = await getRepository().details();
+      const { checkpoints } = await ctx.getRepository().details();
       const point = checkpoints.find((p) => p.id === $("recovery-point").value);
-      if (!point) return;
-      const restored = restoreBackup(
-        { state: point.state, exportedAt: point.at },
-        Date.now(),
-        crypto.randomUUID(),
+      if (point) await preview({ state: point.state, exportedAt: point.at });
+    } catch (e) {
+      errorAt("data-error", e);
+    }
+  };
+  $("cancel-restore").onclick = () => {
+    pending = null;
+    $("restore-preview").hidden = true;
+  };
+  $("confirm-restore").onclick = async () => {
+    if (!pending) return;
+    if (ctx.hasDrafts())
+      return errorAt(
+        "data-error",
+        "Save or explicitly cancel unfinished edits before replacing records.",
       );
-      if (
-        confirm(
-          `Return to the records from ${new Date(point.at).toLocaleString()}? Tracking will pause. Current records will be kept as a recovery point.`,
-        )
-      ) {
-        await change(
-          () => restored,
-          "Recovery point restored. Tracking paused.",
-          { checkpoint: true },
-        );
-        await refresh();
-      }
-    } catch (error) {
-      fail(error);
+    const restored = pending;
+    if (
+      await ctx.change(
+        (s) => {
+          assertUnchanged(s, baseline);
+          return restored;
+        },
+        "Backup restored. Tracking paused.",
+        "data-error",
+        { checkpoint: true },
+      )
+    ) {
+      pending = null;
+      $("restore-preview").hidden = true;
+      ctx.applyPreferences(restored.preferences);
+      await refresh();
     }
   };
   return { refresh };

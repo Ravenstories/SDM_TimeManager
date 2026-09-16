@@ -1,7 +1,8 @@
 import http from "node:http";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-const root = process.cwd();
+const root = path.resolve(process.env.SITE_ROOT || ".");
+const port = Number(process.env.PORT || 4173);
 const mime = {
   ".html": "text/html",
   ".js": "text/javascript",
@@ -36,6 +37,6 @@ http
       res.end("Not found");
     }
   })
-  .listen(4173, "127.0.0.1", () =>
-    console.log("SDM Time Manager: http://127.0.0.1:4173"),
+  .listen(port, "127.0.0.1", () =>
+    console.log("SDM Time Manager: http://127.0.0.1:" + port),
   );

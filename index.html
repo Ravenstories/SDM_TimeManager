@@ -4,167 +4,225 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#f7f8f5" />
-    <meta
-      name="description"
-      content="A quiet, two-role work timer for VD and SIT."
-    />
+    <meta name="description" content="A quiet, private daily time tracker." />
     <title>SDM Time Manager</title>
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="stylesheet" href="./src/styles.css" />
   </head>
   <body>
+    <a class="skip" href="#main">Skip to timers</a>
     <header class="topbar">
       <a class="brand" href="./"
-        ><span class="logo" aria-hidden="true">◷</span> SDM
-        <span class="brand-light">Time Manager</span></a
+        ><span aria-hidden="true">◷</span> SDM <small>Time Manager</small></a
       >
-      <div class="header-actions">
+      <nav aria-label="Main">
         <label class="display-mode"
-          >Time
-          <select id="time-format" aria-label="Time display format">
+          >Time<select id="time-format" aria-label="Time display format">
             <option value="clock">Hours : minutes : seconds</option>
             <option value="decimal">Decimal hours</option>
-          </select>
-        </label>
-        <button id="open-reports" class="quiet">Reports</button>
-        <button id="compact" class="quiet">Compact view</button
-        ><button id="data" class="quiet">Data & help</button>
-      </div>
+          </select></label
+        >
+        <button id="open-reports">Reports</button
+        ><button id="compact" aria-pressed="false">Compact view</button>
+        <button id="open-responsibilities">Responsibilities</button
+        ><button id="data">Data & recovery</button
+        ><button id="help">Help</button>
+      </nav>
     </header>
-    <main>
+    <main id="main">
       <section class="intro">
         <div>
-          <p class="eyebrow" id="today-label">YOUR WORKDAY</p>
-          <h1>Make time for both.</h1>
-          <p class="subtitle">Two responsibilities. One thing at a time.</p>
+          <p class="eyebrow" id="today-label">TODAY'S LIVE TIMER</p>
+          <h1>One thing at a time.</h1>
+          <p class="subtitle">
+            Your responsibilities. A clear picture of your day.
+          </p>
         </div>
-        <span id="work-status" class="status">Ready when you are</span>
+        <span id="work-status" class="status">Loading…</span>
       </section>
-      <div id="error" role="alert" hidden></div>
+      <p id="error" role="alert" hidden></p>
+      <p id="preference-warning" role="status" hidden></p>
+      <div class="update-bar">
+        <span id="app-version"></span
+        ><button id="apply-update" hidden>Update available</button>
+      </div>
+      <section
+        class="clocks"
+        id="clocks"
+        aria-label="Responsibility timers"
+      ></section>
+      <div class="timer-controls">
+        <label id="more-clocks-label" hidden
+          >Other responsibilities<select id="more-clocks"></select
+        ></label>
+        <button id="start-selected" hidden>Start selected</button>
+        <button id="pause" class="primary" disabled>Ⅱ Pause tracking</button
+        ><button id="stop-at" disabled>Stop at…</button>
+        <span id="session-status"></span>
+      </div>
+      <section
+        id="long-review"
+        class="notice"
+        aria-labelledby="review-title"
+        hidden
+      >
+        <h2 id="review-title">Review your running timer</h2>
+        <p id="review-description"></p>
+        <button id="keep-tracking">Keep tracking</button
+        ><button id="review-stop">Stop now</button
+        ><button id="review-choose">Choose stop time</button>
+      </section>
+      <section class="journal" aria-labelledby="day-heading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">YOUR DAY, IN ORDER</p>
+            <h2 id="day-heading">Daily review</h2>
+          </div>
+          <div class="day-actions">
+            <button id="previous-day" aria-label="Previous day">←</button
+            ><label>View day<input type="date" id="day" /></label
+            ><button id="next-day" aria-label="Next day">→</button
+            ><button id="today">Today</button>
+          </div>
+        </div>
+        <p id="viewing-day"></p>
+        <div
+          class="totals"
+          id="day-totals"
+          aria-label="Selected day totals"
+        ></div>
+        <div
+          id="day-breakdown"
+          class="breakdown"
+          aria-label="Work responsibility breakdown"
+        ></div>
+        <div class="day-grid">
+          <section class="panel" aria-labelledby="timeline-title">
+            <div class="section-heading">
+              <h3 id="timeline-title">Time entries</h3>
+              <button id="manage-time">Add time</button>
+            </div>
+            <div id="timeline"></div>
+          </section>
+          <section class="panel" aria-labelledby="notes-title">
+            <h3 id="notes-title">Work notes</h3>
+            <form id="note-form">
+              <label for="note">Note</label
+              ><textarea
+                id="note"
+                rows="3"
+                maxlength="5000"
+                placeholder="What were you working on?"
+              ></textarea>
+              <div class="fields">
+                <label for="note-role">Responsibility</label
+                ><select id="note-role"></select
+                ><label for="note-at">Note date and time</label
+                ><input
+                  id="note-at"
+                  type="datetime-local"
+                  step="any"
+                  required
+                />
+              </div>
+              <p id="note-date-hint" class="hint"></p>
+              <p id="note-error" role="alert" hidden></p>
+              <div class="actions">
+                <button type="submit" class="primary" id="save-note">
+                  Add note</button
+                ><button type="button" id="cancel-note">Clear draft</button
+                ><button type="button" id="reload-note" hidden>
+                  Reload record</button
+                ><span id="note-count" class="hint">0 / 5000</span>
+              </div>
+            </form>
+            <div id="notes"></div>
+          </section>
+        </div>
+      </section>
       <button id="backup-reminder" class="backup-reminder" hidden>
         Keep your history safe · Export a backup
       </button>
-      <section class="clocks" aria-label="Responsibility timers">
-        <button class="clock vd" id="vd" aria-pressed="false">
-          <span class="card-heading"
-            ><span
-              ><span class="role-title"><i></i>VD</span
-              ><span class="role-description">SDM</span></span
-            ><span class="badge" id="vd-badge">Ready</span></span
-          ><span class="time" id="vd-time">00:00:00</span
-          ><span class="time-caption">tracked today</span
-          ><span class="card-bottom"
-            ><span id="vd-action"
-              >Start VD <span aria-hidden="true">↗</span></span
-            ><kbd>1</kbd></span
-          >
-        </button>
-        <button class="clock sit" id="sit" aria-pressed="false">
-          <span class="card-heading"
-            ><span
-              ><span class="role-title"><i></i>SIT</span
-              ><span class="role-description">SDM / Servicedesk</span></span
-            ><span class="badge" id="sit-badge">Ready</span></span
-          ><span class="time" id="sit-time">00:00:00</span
-          ><span class="time-caption">tracked today</span
-          ><span class="card-bottom"
-            ><span id="sit-action"
-              >Start SIT <span aria-hidden="true">↗</span></span
-            ><kbd>2</kbd></span
-          >
-        </button>
-        <button class="clock extra" id="extra" aria-pressed="false" hidden>
-          <span class="card-heading"
-            ><span
-              ><span class="role-title"
-                ><i></i><span id="extra-title">Other</span></span
-              ><span class="role-description" id="extra-description"
-                >Additional clock</span
-              ></span
-            ><span class="badge" id="extra-badge">Ready</span></span
-          ><span class="time" id="extra-time">00:00:00</span
-          ><span class="time-caption">tracked today</span
-          ><span class="card-bottom"
-            ><span id="extra-action"
-              >Start <span aria-hidden="true">↗</span></span
-            ></span
-          >
-        </button>
-      </section>
-      <div class="timer-controls">
-        <button id="pause" class="primary" disabled>Ⅱ Pause tracking</button
-        ><span id="session-status">Select a responsibility to begin.</span
-        ><button id="configure-clock" class="quiet">＋ Add clock</button>
-      </div>
-      <section class="split" aria-label="Today's time split">
-        <div class="split-labels">
-          <span>Today's balance</span><strong id="total">0h 00m total</strong>
-        </div>
-        <div class="split-track">
-          <div id="vd-bar"></div>
-          <div id="sit-bar"></div>
-        </div>
-        <div class="split-legend">
-          <span><i class="dot vd-dot"></i>VD <b id="vd-percent">0%</b></span
-          ><span
-            ><i class="dot sit-dot"></i>SIT <b id="sit-percent">0%</b></span
-          >
-        </div>
-      </section>
-      <section class="journal">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">LEAVE A LITTLE CONTEXT</p>
-            <h2>Work notes</h2>
-          </div>
-          <div class="day-actions">
-            <button id="today" class="quiet">Today</button>
-            <label class="date-label"
-              >View day <input type="date" id="day"
-            /></label>
-            <button id="manage-time">Edit time</button>
-          </div>
-        </div>
-        <div id="past-summary" hidden></div>
-        <form id="note-form">
-          <label class="sr-only" for="note">Work note</label
-          ><textarea
-            id="note"
-            rows="2"
-            maxlength="5000"
-            placeholder="What are you working on?"
-          ></textarea>
-          <div class="note-toolbar">
-            <label
-              >For
-              <select id="note-role">
-                <option value="vd">VD · SDM</option>
-                <option value="sit">SIT · Servicedesk</option>
-                <option value="extra" id="note-extra-role" hidden>
-                  Additional clock
-                </option>
-              </select></label
-            ><button type="submit" class="primary">
-              Add note <span aria-hidden="true">↗</span>
-            </button>
-          </div>
-          <p class="hint note-hint">
-            <span
-              >Notes are saved to today. Your draft stays here when you switch
-              roles.</span
-            >
-            <span id="note-count">0 / 5000</span>
-          </p>
-        </form>
-        <div id="notes"></div>
-      </section>
       <footer>
-        <span><i class="dot vd-dot"></i> Saved on this device</span
-        ><span>1 / 2 to switch · Space to pause</span>
+        <span id="save-status">Loading records…</span
+        ><span
+          >1 / 2 / 3 to switch · Space to pause · Local to this browser</span
+        >
       </footer>
     </main>
     <div id="announcement" class="sr-only" role="status"></div>
+    <dialog id="responsibilities" aria-labelledby="responsibilities-title">
+      <div class="section-heading">
+        <h2 id="responsibilities-title">Responsibilities</h2>
+        <button id="close-responsibilities" aria-label="Close responsibilities">
+          ✕
+        </button>
+      </div>
+      <p>
+        First three available responsibilities appear as timer cards. Rename or
+        reclassify a responsibility to update its entire history.
+      </p>
+      <p id="legacy-warning" class="notice" hidden>
+        Some legacy additional-clock time needs classification. Earlier names
+        and settings were not stored and cannot be reconstructed.
+      </p>
+      <div id="responsibility-list"></div>
+      <form id="responsibility-form">
+        <h3 id="responsibility-form-title">Add responsibility</h3>
+        <label for="responsibility-name">Name</label
+        ><input id="responsibility-name" maxlength="40" required />
+        <label for="responsibility-classification">Classification</label
+        ><select id="responsibility-classification">
+          <option value="work">Work</option>
+          <option value="nonwork">Non-work</option>
+          <option value="unresolved" hidden>Unresolved legacy time</option>
+        </select>
+        <p id="responsibility-impact" class="notice"></p>
+        <p id="responsibility-error" role="alert" hidden></p>
+        <div class="actions">
+          <button type="submit" id="save-responsibility" class="primary">
+            Add responsibility</button
+          ><button type="button" id="cancel-responsibility">Cancel edit</button
+          ><button type="button" id="reload-responsibility" hidden>
+            Reload record
+          </button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="time-editor" aria-labelledby="time-editor-title">
+      <div class="section-heading">
+        <h2 id="time-editor-title">Time entry</h2>
+        <button id="close-time-editor" aria-label="Close time editor">✕</button>
+      </div>
+      <form id="time-entry-form">
+        <label for="time-entry-role">Responsibility</label
+        ><select id="time-entry-role"></select>
+        <label for="time-entry-start">Start</label
+        ><input
+          id="time-entry-start"
+          type="datetime-local"
+          step="any"
+          required
+        />
+        <label for="time-entry-end">End</label
+        ><input id="time-entry-end" type="datetime-local" step="any" required />
+        <p id="time-preview" class="notice"></p>
+        <p id="time-entry-error" role="alert" hidden></p>
+        <div class="actions">
+          <button type="submit" id="save-time-entry" class="primary">
+            Save entry</button
+          ><button type="button" id="cancel-time-entry">Cancel edit</button
+          ><button type="button" id="reload-time-entry" hidden>
+            Reload record
+          </button>
+        </div>
+      </form>
+      <p class="hint">
+        Completed entries cannot overlap or end in the future. Unchanged
+        timestamps retain their exact precision.
+      </p>
+    </dialog>
     <dialog id="reports" aria-labelledby="report-title">
       <div class="section-heading">
         <div>
@@ -174,194 +232,128 @@
         <button id="close-reports" aria-label="Close reports">✕</button>
       </div>
       <div class="report-controls">
-        <label
-          >Period
-          <select id="report-period">
+        <button id="previous-period" aria-label="Previous period">←</button
+        ><label
+          >Period<select id="report-period">
             <option value="day">Daily</option>
             <option value="week">Weekly</option>
             <option value="month" selected>Monthly</option>
             <option value="year">Yearly</option>
           </select></label
-        ><label>Containing date <input id="report-anchor" type="date" /></label
+        ><label>Containing date<input type="date" id="report-anchor" /></label
+        ><button id="next-period" aria-label="Next period">→</button
+        ><label>Responsibility<select id="report-role"></select></label
         ><button id="refresh-report">Refresh</button>
       </div>
       <p id="report-description"></p>
-      <div class="report-totals">
-        <div><span>VD · SDM</span><strong id="report-vd">00:00:00</strong></div>
-        <div>
-          <span>SIT · Servicedesk</span
-          ><strong id="report-sit">00:00:00</strong>
-        </div>
-        <div>
-          <span id="report-extra-label">Additional</span
-          ><strong id="report-extra">00:00:00</strong>
-        </div>
-        <div>
-          <span>Total tracked</span><strong id="report-total">00:00:00</strong>
-        </div>
-      </div>
+      <div id="report-totals" class="totals"></div>
+      <div id="report-breakdown" class="breakdown"></div>
       <div class="table-scroll">
         <table>
           <caption>
-            Daily breakdown · select a date to see its notes
+            Daily breakdown · select a date to review it
           </caption>
           <thead>
             <tr>
-              <th scope="col">Date</th>
-              <th scope="col">VD</th>
-              <th scope="col">SIT</th>
-              <th scope="col">Additional</th>
-              <th scope="col">Total</th>
-              <th scope="col">Notes</th>
+              <th>Date</th>
+              <th>Work</th>
+              <th>Non-work</th>
+              <th>Unresolved</th>
+              <th>Total tracked</th>
+              <th>Notes</th>
             </tr>
           </thead>
           <tbody id="report-rows"></tbody>
         </table>
       </div>
-      <p id="report-empty" class="empty">
-        No time or notes recorded in this period.
+      <p id="report-empty" class="empty" hidden>
+        No time or notes in this period.
       </p>
-      <div class="report-footer">
-        <span class="hint"
-          >Hours : minutes : seconds · Monday starts each week.<br />Running
-          time is included as of the last refresh.</span
-        ><button id="report-csv">Export report CSV</button>
+      <p id="report-format-hint" class="hint"></p>
+      <p id="report-error" role="alert" hidden></p>
+      <div class="actions">
+        <button id="report-csv">Export daily CSV v2</button
+        ><button id="report-legacy">Export legacy daily CSV</button>
       </div>
     </dialog>
-    <dialog id="settings">
-      <p id="data-error" role="alert" hidden></p>
+    <dialog id="settings" aria-labelledby="data-title">
       <div class="section-heading">
-        <h2>Your time, your data.</h2>
-        <button id="close-settings" aria-label="Close dialog">✕</button>
-      </div>
-      <p>
-        Time continues until you pause or switch, including while minimized,
-        asleep, or closed. On your return, elapsed time is calculated from the
-        saved start time. Your device's local timezone determines each day.
-      </p>
-      <p>
-        Time and notes are saved automatically in a database in this browser.
-        They are not published to GitHub. There is no cloud sync. Download
-        backups to keep a copy outside this browser, or to move your history to
-        another device.
-      </p>
-      <p id="storage-status" role="status"></p>
-      <button id="protect-storage">Protect browser storage</button>
-      <p class="hint">
-        Protection can reduce automatic browser cleanup, but it cannot protect
-        against clearing site data, losing this device, or private browsing.
-        Keep an external backup.
-      </p>
-      <h3>External backups</h3>
-      <p id="backup-status"></p>
-      <div class="data-actions">
-        <button id="export">Export backup</button
-        ><button id="csv">Export time CSV</button
-        ><label class="file-button"
-          >Restore backup<input
-            type="file"
-            id="import"
-            accept="application/json,.json"
-        /></label>
-      </div>
-      <p class="hint">
-        Restoring replaces local records and pauses an imported running timer at
-        its export time. A recovery point preserves your current records first.
-      </p>
-      <h3>Recovery points</h3>
-      <p>
-        Up to 14 snapshots are kept in this browser: before the first change
-        each day and before a restore. These help undo a restore but are not an
-        external backup.
-      </p>
-      <label class="recovery-label"
-        >Saved snapshot
-        <select id="recovery-point"></select
-      ></label>
-      <p id="recovery-empty" class="hint">
-        A recovery point will be created when you first track time or save a
-        note.
-      </p>
-      <button id="restore-point" disabled>Restore recovery point</button>
-      <h3>Keep it close</h3>
-      <p>
-        Pin this tab or use your browser's install / open as app option where
-        available. Compact view keeps both clocks within easy reach. After the
-        first online visit, the app can open offline.
-      </p>
-      <p class="hint">
-        Keyboard shortcuts work while this app has focus, outside text fields.
-        They are not global desktop shortcuts.
-      </p>
-      <h3>Additional clock</h3>
-      <p>
-        Add a temporary clock for ad hoc work, meetings, or breaks. Removing it
-        keeps its history.
-      </p>
-      <div class="extra-clock-settings">
-        <label
-          >Name
-          <input
-            id="extra-clock-name"
-            maxlength="40"
-            placeholder="e.g. Break"
-        /></label>
-        <label class="check-label"
-          ><input id="extra-clock-work" type="checkbox" checked /> Include in
-          work total</label
-        >
-        <div class="data-actions">
-          <button id="save-extra-clock">Save clock</button>
-          <button id="remove-extra-clock" hidden>Remove clock</button>
-        </div>
-      </div>
-    </dialog>
-    <dialog id="time-editor" aria-labelledby="time-editor-title">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">CORRECT YOUR HISTORY</p>
-          <h2 id="time-editor-title">Time entries</h2>
-        </div>
-        <button id="close-time-editor" aria-label="Close time editor">
+        <h2 id="data-title">Data & recovery</h2>
+        <button id="close-settings" aria-label="Close data and recovery">
           ✕
         </button>
       </div>
-      <p id="time-editor-day"></p>
-      <div id="time-entry-list"></div>
-      <form id="time-entry-form">
-        <input id="time-entry-id" type="hidden" />
-        <div class="entry-fields">
-          <label
-            >Responsibility
-            <select id="time-entry-role">
-              <option value="vd">VD · SDM</option>
-              <option value="sit">SIT · Servicedesk</option>
-              <option value="extra" id="time-entry-extra" hidden>
-                Additional clock
-              </option>
-            </select>
-          </label>
-          <label
-            >Start
-            <input id="time-entry-start" type="datetime-local" required
-          /></label>
-          <label
-            >End <input id="time-entry-end" type="datetime-local" required
-          /></label>
-        </div>
-        <p id="time-entry-error" class="form-error" role="alert" hidden></p>
-        <div class="editor-actions">
-          <button type="button" id="cancel-time-entry" hidden>
-            Cancel edit
-          </button>
-          <button type="submit" class="primary" id="save-time-entry">
-            Add time entry
-          </button>
-        </div>
-      </form>
-      <p class="hint">
-        Entries cannot overlap. A recovery point is created automatically
-        before your first change today.
+      <p id="data-error" role="alert" hidden></p>
+      <p>
+        Records stay in this browser. Backups transfer data by replacement; they
+        do not synchronize devices.
+      </p>
+      <p id="storage-status"></p>
+      <button id="protect-storage">Protect browser storage</button>
+      <h3>External backups</h3>
+      <p id="backup-status"></p>
+      <div class="actions">
+        <button id="export">Export JSON backup</button
+        ><button id="csv">Export sessions CSV v2</button
+        ><button id="legacy-csv">Export legacy sessions CSV</button>
+      </div>
+      <label
+        >Preview backup to restore<input
+          type="file"
+          id="import"
+          accept=".json,application/json"
+      /></label>
+      <h3>Recovery points</h3>
+      <p>
+        Up to 14 snapshots in this browser. They cannot protect against device
+        loss or cleared site data.
+      </p>
+      <label>Saved snapshot<select id="recovery-point"></select></label>
+      <p id="recovery-empty" hidden>No recovery points yet.</p>
+      <button id="restore-point">Preview recovery point</button>
+      <section id="restore-preview" class="notice" hidden>
+        <h3>Review before replacing data</h3>
+        <div id="restore-description"></div>
+        <button id="confirm-restore" class="primary">
+          Replace records and pause tracking</button
+        ><button id="cancel-restore">Cancel restore</button>
+      </section>
+    </dialog>
+    <dialog id="help-dialog" aria-labelledby="help-title">
+      <div class="section-heading">
+        <h2 id="help-title">How your timer works</h2>
+        <button id="close-help" aria-label="Close help">✕</button>
+      </div>
+      <p>
+        Choose one responsibility to start or switch. Time counts up until you
+        pause, including during sleep or browser closure. The timer reconstructs
+        elapsed time from saved timestamps.
+      </p>
+      <p>
+        Keys 1, 2 and 3 select the first three available responsibilities. Space
+        pauses. Shortcuts do not run inside forms or dialogs and are not global
+        desktop shortcuts.
+      </p>
+      <p>
+        Review past days using the date controls. Correct completed entries or
+        choose an earlier stop time for a forgotten timer. Nothing is removed
+        automatically.
+      </p>
+      <p>
+        Work and non-work totals are separate. Renaming or reclassifying a
+        responsibility changes its entire history. Archive it to retain history
+        without offering it for new tracking.
+      </p>
+      <p>
+        The device timezone determines calendar days. Changing timezone or the
+        system clock can change wall-clock accounting. Export JSON backups
+        regularly. Browser protection and local recovery points are not
+        off-device backups.
+      </p>
+      <p>
+        Install or pin the app using your browser's menu. After one online visit
+        it works offline. Updates never intentionally interrupt unfinished
+        edits; older app windows may need to close before a storage upgrade.
       </p>
     </dialog>
     <script type="module" src="./src/app.js"></script>

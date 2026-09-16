@@ -1,5 +1,6 @@
 import { IndexedRepository } from "../src/indexed-repository.js";
 import { emptyState, switchRole } from "../src/domain.js";
+import { emptyState as legacyState } from "../src/legacy-domain.js";
 
 document.getElementById("run").onclick = async () => {
   const output = document.getElementById("results");
@@ -12,7 +13,7 @@ document.getElementById("run").onclick = async () => {
   let a, b;
   try {
     const legacy = {
-      ...emptyState(),
+      ...legacyState(),
       notes: [{ id: "n", role: "vd", at: 100, text: "Migrated note" }],
     };
     let now = new Date(2026, 8, 9, 10).getTime();
@@ -36,7 +37,7 @@ document.getElementById("run").onclick = async () => {
     ]);
     const saved = await a.read();
     assert(
-      saved.sessions.length === 1 && saved.active.role === "sit",
+      saved.sessions.length === 1 && saved.active.responsibilityId === "sit",
       "concurrent writes retain both role changes",
     );
     assert(
