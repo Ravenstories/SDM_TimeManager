@@ -8,6 +8,8 @@ import {
   duration,
   validateState,
   dayBounds,
+  saveSession,
+  removeSession,
 } from "../src/domain.js";
 test("switch and pause preserve mutually exclusive time", () => {
   const now = new Date(2026, 8, 9, 9).getTime();
@@ -20,6 +22,49 @@ test("switch and pause preserve mutually exclusive time", () => {
     sit: 30000,
   });
   assert.equal(s.active, null);
+});
+test("manual sessions can be added, edited, sorted, and removed", () => {
+  let state = emptyState();
+  state = saveSession(
+    state,
+    { id: "later", role: "sit", start: 200, end: 300 },
+  );
+  state = saveSession(
+    state,
+    { id: "early", role: "vd", start: 100, end: 150 },
+  );
+  assert.deepEqual(state.sessions.map((item) => item.id), ["early", "later"]);
+  state = saveSession(
+    state,
+    { id: "early", role: "sit", start: 110, end: 160 },
+  );
+  assert.equal(state.sessions[0].role, "sit");
+  assert.deepEqual(
+    removeSession(state, "later").sessions.map((item) => item.id),
+    ["early"],
+  );
+});
+test("manual sessions reject invalid and overlapping time", () => {
+  const state = saveSession(
+    emptyState(),
+    { id: "one", role: "vd", start: 100, end: 200 },
+  );
+  assert.throws(
+    () =>
+      saveSession(
+        state,
+        { id: "two", role: "sit", start: 150, end: 250 },
+      ),
+    /overlaps/,
+  );
+  assert.throws(
+    () =>
+      saveSession(
+        state,
+        { id: "two", role: "sit", start: 250, end: 250 },
+      ),
+    /valid start/,
+  );
 });
 test("sleep and reload use timestamps rather than ticks", () => {
   const now = new Date(2026, 8, 9, 9).getTime();
