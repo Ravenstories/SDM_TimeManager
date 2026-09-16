@@ -1,11 +1,11 @@
-import { emptyState, validateState, localDate } from "./domain.js";
+import { emptyState, validateState, migrateState, localDate } from "./domain.js";
 import { KEY } from "./storage.js";
 
 /** IndexedDB serializes read/write transactions across all tabs. */
 export class IndexedRepository {
   constructor({
     database = indexedDB,
-    legacy = localStorage,
+    legacy,
     name = "sdm-time-manager",
     now = Date.now,
   } = {}) {
@@ -16,15 +16,23 @@ export class IndexedRepository {
   }
   async open() {
     this.db = await new Promise((resolve, reject) => {
-      const request = this.database.open(this.name, 1);
-      request.onupgradeneeded = () =>
-        request.result.createObjectStore("records");
-      request.onsuccess = () => resolve(request.result);
+      const request = this.database.open(this.name, 2);
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains("records"))
+          request.result.createObjectStore("records");
+      };
+      let blocked = false;
+      request.onsuccess = () => {
+        if (blocked) request.result.close();
+        else resolve(request.result);
+      };
       request.onerror = () => reject(request.error);
-      request.onblocked = () =>
+      request.onblocked = () => {
+        blocked = true;
         reject(
           new Error("Close other app tabs to finish the storage upgrade."),
         );
+      };
     });
     this.db.onversionchange = () => this.db.close();
     await this.transaction("readwrite", (store) => {
@@ -32,14 +40,23 @@ export class IndexedRepository {
       request.onsuccess = () => {
         try {
           if (request.result !== undefined) {
-            validateState(request.result);
+            if (request.result.version === 1) {
+              const migrated = migrateState(request.result);
+              const history = store.get("checkpoints");
+              history.onsuccess = () => {
+                store.put([...(history.result || []), {id:crypto.randomUUID(), at:this.now(),
+                  reason:"Before v2 migration", state:request.result}].slice(-14), "checkpoints");
+                store.put(migrated, "current");
+              };
+            } else validateState(request.result);
             return;
           }
-          const raw = this.legacy.getItem(KEY);
+          const raw = (this.legacy || localStorage).getItem(KEY);
           const state =
-            raw === null ? emptyState() : validateState(JSON.parse(raw));
+            raw === null ? emptyState() : migrateState(JSON.parse(raw));
           store.put(state, "current");
-          store.put([], "checkpoints");
+          store.put(raw === null ? [] : [{id:crypto.randomUUID(), at:this.now(),
+            reason:"Before v2 migration", state:JSON.parse(raw)}], "checkpoints");
           store.put({ migratedAt: this.now(), lastExportAt: null }, "meta");
         } catch (error) {
           this.abort(store, error);

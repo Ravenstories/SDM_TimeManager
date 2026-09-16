@@ -11,7 +11,7 @@ import {
   saveSession,
   removeSession,
   decimalHours,
-} from "../src/domain.js";
+} from "../src/legacy-domain.js";
 test("exports the decimal-hour formatter used by the time header", () => {
   assert.equal(typeof decimalHours, "function");
 });

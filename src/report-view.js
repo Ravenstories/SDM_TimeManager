@@ -1,82 +1,43 @@
-import { createReport, reportCsv } from "./reports.js";
-import { duration, decimalHours, localDate } from "./domain.js";
-
-export function setupReports({ getState, download, showDay }) {
-  const $ = (id) => document.getElementById(id);
+import { createReport, reportCsv, legacyReportCsv, adjacentPeriod } from "./reports.js";
+import { localDate } from "./domain.js";
+import { $, el, button, roleOptions, dateTime, errorAt } from "./ui.js";
+import { renderTotals, renderBreakdown } from "./summary-view.js";
+export function setupReports(ctx){
   let report;
-  $("report-anchor").value = localDate();
-  function render() {
-    if (!getState()) return;
-    const anchor = $("report-anchor").value;
-    if (!anchor) return;
-    report = createReport(
-      getState(),
-      $("report-period").value,
-      anchor,
-      Date.now(),
-    );
-    const total = report.total.vd + report.total.sit + report.total.extra;
-    const format = $("time-format").value === "decimal" ? decimalHours : duration;
-    $("report-format-hint").textContent = ($("time-format").value === "decimal" ? "Decimal hours" : "Hours : minutes : seconds") + " · Monday starts each week. Running time is included as of the last refresh.";
-    $("report-vd").textContent = format(report.total.vd);
-    $("report-sit").textContent = format(report.total.sit);
-    $("report-extra").textContent = format(report.total.extra);
-    $("report-extra-label").textContent =
-      getState().extraClock?.name || "Additional";
-    $("report-total").textContent = format(total);
-    $("report-description").textContent =
-      `${report.start} to ${report.days.at(-1).date} · ${report.trackedDays} tracked days · ${total ? Math.round((report.total.vd / total) * 100) : 0}% VD / ${total ? Math.round((report.total.sit / total) * 100) : 0}% SIT${report.total.extra ? ` / ${Math.round((report.total.extra / total) * 100)}% ${getState().extraClock?.name || "Additional"}` : ""}`;
-    $("report-rows").replaceChildren();
-    for (const day of report.days.filter(
-      (day) => day.vd + day.sit + day.extra > 0 || day.notes,
-    )) {
-      const row = document.createElement("tr"),
-        dateCell = document.createElement("td"),
-        button = document.createElement("button");
-      button.textContent = day.date;
-      button.className = "quiet";
-      button.setAttribute("aria-label", `View notes for ${day.date}`);
-      button.onclick = () => {
-        $("reports").close();
-        showDay(day.date);
-      };
-      dateCell.append(button);
-      row.append(dateCell);
-      for (const value of [
-        format(day.vd),
-        format(day.sit),
-        format(day.extra),
-        format(day.vd + day.sit + day.extra),
-        day.notes,
-      ]) {
-        const cell = document.createElement("td");
-        cell.textContent = value;
-        row.append(cell);
+  $("report-anchor").value=localDate();
+  function render(){
+    if(!ctx.getState())return;
+    try{
+      roleOptions($("report-role"),ctx.getState(),{all:true});
+      report=createReport(ctx.getState(),$("report-period").value,$("report-anchor").value,Date.now(),$("report-role").value);
+      $("report-description").textContent=report.start+" to "+report.days.at(-1).date+" · "+report.trackedDays+" tracked days";
+      renderTotals($("report-totals"),report.total,ctx.format);
+      renderBreakdown($("report-breakdown"),ctx.getState(),report.total,ctx.format);
+      $("report-rows").replaceChildren();
+      for(const day of report.days.filter(d=>d.tracked||d.notes)){
+        const row=el("tr"),cell=el("td");
+        cell.append(button(day.date,()=>{$("reports").close();ctx.showDay(day.date);},"Review "+day.date));row.append(cell);
+        for(const kind of ["work","nonwork","unresolved","tracked"])row.append(el("td",ctx.format(day[kind])));
+        row.append(el("td",String(day.notes)));$("report-rows").append(row);
       }
-      $("report-rows").append(row);
-    }
-    $("report-empty").hidden = $("report-rows").children.length !== 0;
+      $("report-empty").hidden=Boolean($("report-rows").children.length);
+      $("report-format-hint").textContent=(ctx.portablePreferences().timeFormat==="decimal"?"Decimal hours":"Hours : minutes : seconds")+
+        " · Monday starts each week · Included through "+dateTime(report.asOf)+" · "+report.timezone+
+        ". Legacy CSV groups every responsibility except the original VD/SIT IDs as Additional.";
+      errorAt("report-error",null);
+    }catch(e){errorAt("report-error",e);}
   }
-  $("open-reports").onclick = () => {
-    render();
-    $("reports").showModal();
+  $("open-reports").onclick=()=>{render();$("reports").showModal();};
+  $("close-reports").onclick=()=>$("reports").close();
+  for(const id of ["report-period","report-anchor","report-role"])$(id).onchange=render;
+  $("refresh-report").onclick=render;
+  for(const [id,direction] of [["previous-period",-1],["next-period",1]])$(id).onclick=()=>{
+    try{$("report-anchor").value=adjacentPeriod($("report-period").value,$("report-anchor").value,direction);render();}catch(e){errorAt("report-error",e);}
   };
-  $("close-reports").onclick = () => $("reports").close();
-  $("report-period").onchange = render;
-  $("report-anchor").onchange = render;
-  $("refresh-report").onclick = render;
-  $("report-csv").onclick = () => {
-    render();
-    if (report)
-      download(
-        reportCsv(report),
-        `sdm-${report.start}-to-${report.days.at(-1).date}.csv`,
-        "text/csv",
-      );
+  for(const [id,legacy] of [["report-csv",false],["report-legacy",true]])$(id).onclick=()=>{
+    try{render();if(report)ctx.download(legacy?legacyReportCsv(report):reportCsv(report),"sdm-"+report.start+"-"+(legacy?"legacy":"daily-v2")+".csv","text/csv");}
+    catch(e){errorAt("report-error",e);}
   };
-  return {
-    refresh: () => {
-      if ($("reports").open) render();
-    },
-  };
+  return {render:()=>{if($("reports").open)render();}};
 }
+

@@ -21,8 +21,8 @@ test("real IndexedDB serializes tabs and rolls back failed writes", async ({ pag
     const { IndexedRepository } = await import("/src/indexed-repository.js");
     const a = await new IndexedRepository({ name: "qa-transactions" }).open();
     const b = await new IndexedRepository({ name: "qa-transactions" }).open();
-    await Promise.all([a.update(s => ({...s, notes: [...s.notes, {id:"a", role:"vd", at:100, text:"a"}]})),
-      b.update(s => ({...s, notes: [...s.notes, {id:"b", role:"sit", at:200, text:"b"}]}))]);
+    await Promise.all([a.update(s => ({...s, notes: [...s.notes, {id:"a", responsibilityId:"vd", at:100, text:"a"}]})),
+      b.update(s => ({...s, notes: [...s.notes, {id:"b", responsibilityId:"sit", at:200, text:"b"}]}))]);
     try { await a.update(() => { throw Error("abort"); }); } catch {}
     const value = await b.read();
     a.close(); b.close();
@@ -30,4 +30,3 @@ test("real IndexedDB serializes tabs and rolls back failed writes", async ({ pag
   });
   expect(result).toBe(2);
 });
-
