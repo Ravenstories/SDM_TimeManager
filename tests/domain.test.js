@@ -30,19 +30,23 @@ test("switch and pause preserve mutually exclusive time", () => {
 });
 test("manual sessions can be added, edited, sorted, and removed", () => {
   let state = emptyState();
-  state = saveSession(
-    state,
-    { id: "later", role: "sit", start: 200, end: 300 },
+  state = saveSession(state, {
+    id: "later",
+    role: "sit",
+    start: 200,
+    end: 300,
+  });
+  state = saveSession(state, { id: "early", role: "vd", start: 100, end: 150 });
+  assert.deepEqual(
+    state.sessions.map((item) => item.id),
+    ["early", "later"],
   );
-  state = saveSession(
-    state,
-    { id: "early", role: "vd", start: 100, end: 150 },
-  );
-  assert.deepEqual(state.sessions.map((item) => item.id), ["early", "later"]);
-  state = saveSession(
-    state,
-    { id: "early", role: "sit", start: 110, end: 160 },
-  );
+  state = saveSession(state, {
+    id: "early",
+    role: "sit",
+    start: 110,
+    end: 160,
+  });
   assert.equal(state.sessions[0].role, "sit");
   assert.deepEqual(
     removeSession(state, "later").sessions.map((item) => item.id),
@@ -50,24 +54,18 @@ test("manual sessions can be added, edited, sorted, and removed", () => {
   );
 });
 test("manual sessions reject invalid and overlapping time", () => {
-  const state = saveSession(
-    emptyState(),
-    { id: "one", role: "vd", start: 100, end: 200 },
-  );
+  const state = saveSession(emptyState(), {
+    id: "one",
+    role: "vd",
+    start: 100,
+    end: 200,
+  });
   assert.throws(
-    () =>
-      saveSession(
-        state,
-        { id: "two", role: "sit", start: 150, end: 250 },
-      ),
+    () => saveSession(state, { id: "two", role: "sit", start: 150, end: 250 }),
     /overlaps/,
   );
   assert.throws(
-    () =>
-      saveSession(
-        state,
-        { id: "two", role: "sit", start: 250, end: 250 },
-      ),
+    () => saveSession(state, { id: "two", role: "sit", start: 250, end: 250 }),
     /valid start/,
   );
 });

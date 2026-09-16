@@ -1,52 +1,146 @@
 # SDM Time Manager
 
-A lightweight, local-first chess clock for **VD · SDM** and **SIT · SDM / Servicedesk**. Counts up, with exactly one active responsibility. No runtime dependencies or backend.
+A private, local-first count-up timer with configurable responsibilities, a daily
+timeline, dated work notes, reporting and recovery. VD and SIT are editable
+starting defaults. Exactly one responsibility runs at a time.
 
-## Run
+## Run and verify
 
-Use Node.js 22 or later. Run `npm start` and open http://127.0.0.1:4173. Run `npm test` for domain tests and `npm run build` for the static `dist/` output.
+Use Node.js 22 or later.
 
-## Use
+```sh
+npm ci
+npm start
+npm test
+npm run build
+npx playwright install chromium
+npm run test:browser
+```
 
-Click a role to start or switch. Pause for breaks or at the end of the day. While the page has focus, 1 and 2 select roles and Space pauses. Shortcuts are ignored inside controls. Compact view reduces the interface to the clocks. Choose clock or decimal-hour display from the header; the preference is kept in this browser. Notes are attached to a role and the current day; the date picker shows previous notes and totals. Use **Edit time** to add, correct, or delete completed entries for the selected day. Saved notes can also be edited or deleted. **Data & help** can add one named clock for ad hoc work, meetings, or breaks and optionally exclude it from the work total. Removing that clock keeps its history.
+The development server opens at http://127.0.0.1:4173. Set `PORT` to use another
+port, or `SITE_ROOT=dist` to serve the build. Browser tests serve an isolated
+build on port 49168 with separate browser contexts. They do not touch your normal
+browser's records. Two workers are used to avoid host resource contention.
 
-The home screen is for daily work. **Reports** provides daily, weekly, monthly, and yearly views, with totals per responsibility, percentage split, tracked days, and a daily breakdown. Weeks begin on Monday. Select a date in a report to open its notes. Report CSV exports all days in the selected calendar period, including zero-activity days, with decimal hours. Running time is included up to the most recent refresh.
+The browser suite covers production IndexedDB, migration, transactions,
+corrections, drafts, reports, restore, offline reopening, updates and responsive
+controls. `tests/browser-storage.html` is also retained as a manual storage
+harness for the development server. `npm run format` formats maintained sources.
 
-Running time continues across minimized windows, browser closure, computer sleep, and midnight until explicitly paused. The app stores a timestamp and reconstructs elapsed time when it opens; it does not execute in the background while the browser is closed. Midnight divides time by local calendar day. Manual system-clock/timezone changes affect wall-clock accounting. Remember to pause when you finish work.
+## Daily use
 
-Time and notes stay in an IndexedDB database in this browser and are not sent to GitHub or a server. Existing v1 localStorage records are migrated on first use, inside a transaction, without deleting the original. LocalStorage remains in use for the note draft. Data does not sync between devices, browsers, or origins.
+- Start a responsibility, switch directly to another, or pause. The first three
+  available responsibilities have timer cards and keyboard shortcuts 1–3.
+  Additional responsibilities appear in the switcher. Space pauses.
+- Shortcuts are ignored inside controls and dialogs. They are not global desktop
+  shortcuts. Compact view keeps the timer and switching controls visible.
+- The live timer always shows today. The daily review can show another date with
+  its timeline, work/non-work totals, responsibility breakdown and notes.
+- Add or correct completed entries directly from the timeline. Entries cannot
+  overlap or end in the future. Unchanged timestamp fields keep their exact
+  instant, including milliseconds and repeated daylight-saving hours.
+- Use **Stop at…** to correct a running timer. A review appears after crossing
+  midnight or reaching twelve hours; it never stops tracking automatically.
+  **Keep tracking** dismisses review for that particular session.
+- Notes have an explicit date, time and responsibility. New past-day notes
+  default to noon. Notes and time-entry drafts survive reload and are kept
+  separately per window; a new window can recover the latest unfinished draft.
+  Save or explicitly cancel drafts before restoring data or applying an update.
+- Concurrent record edits are rejected with reload/cancel recovery instead of
+  silently overwriting newer values. Form controls lock while a save is pending.
 
-**Data & help** shows browser storage protection status, a button to request persistent storage, backup export status, and recovery points. Up to 14 snapshots are created before the first mutation of each local day and before a restore. A snapshot and its associated mutation commit atomically. Recovery points share the same browser storage as the main records; they are not off-device backups.
+## Responsibilities and history
 
-Export JSON backups regularly and keep the downloaded files outside this browser. A reminder appears until an export is requested, and again after seven days. The app records a download request; it cannot verify whether you retained that file. Restoring a backup replaces current data after confirmation, saves a recovery point first, and closes any imported active session at the export timestamp. Older v1 JSON backups remain supported. The session CSV exports UTC intervals and minutes; report CSV exports local-day totals and decimal hours.
+Use **Responsibilities** to add, rename, reorder, classify, archive or restore
+responsibilities. Names are trimmed, 1–40 characters and unique ignoring case.
+IDs remain permanent; there is no permanent-delete action.
 
-Browser protection can reduce automatic eviction, but clearing site data, private browsing, or device loss can still remove records. Storage errors are displayed; malformed records are not silently replaced. Private cross-device cloud storage is not configured. A future sync adapter requires authentication and per-user access control; public GitHub files must never serve as private time/note storage.
+Renaming and reclassifying deliberately apply to the entire associated history.
+The edit preview shows affected entries, notes and the work-total delta.
+Archiving retains history and explicitly stops any running session atomically.
 
-Use a current browser on HTTPS or localhost. IndexedDB transactions serialize updates across tabs; BroadcastChannel refreshes other open tabs, and visible tabs reload state when brought forward. The app shell is cached for offline use after an online visit. Bump the service-worker cache version when changing shipped assets; an update becomes active after existing app windows close. Close older app tabs when upgrading to the IndexedDB version. Install availability depends on browser support; pinning the tab works independently.
+Work, non-work and total-tracked figures are separate. Work-share percentages use
+work time as their denominator. Unresolved legacy time is identified separately.
 
-## Architecture
+## Reports and exports
 
-- `src/domain.js`: pure state transitions, validation, local-day aggregation, formatting. No browser dependencies.
-- `src/indexed-repository.js`: asynchronous transactional persistence, legacy migration, metadata, and bounded recovery history.
-- `src/storage.js`: original v1 adapter and key retained for legacy migration/regression coverage.
-- `src/reports.js` and `src/backup.js`: pure calendar reporting and backup transformations.
-- `src/report-view.js` and `src/data-view.js`: reporting and storage UI controllers with injected dependencies.
-- `src/app.js`: UI coordination; depends on the repository abstraction and domain functions.
-- `src/styles.css`: responsive presentation. Semantic buttons, labels, visible keyboard focus, and textual active states.
-- `scripts/`: dependency-free development server and static build.
+Daily, weekly, monthly and yearly reports have responsibility filters and
+previous/next period navigation. Weeks start Monday. Select a date to review it.
+Reports show the timestamp through which running time is included.
 
-Keep business rules in the domain, browser persistence in its adapter, and UI concerns in the UI. Prefer small functions and explicit dependencies over speculative class hierarchies.
+- **Daily CSV v2:** rows per local day and responsibility, with permanent ID,
+  current name, classification, decimal hours, calendar timezone and explicitly
+  typed daily/period summary rows. Do not sum detail and summary rows together.
+- **Sessions CSV v2:** exact UTC intervals, responsibility metadata, milliseconds,
+  decimal hours and typed work/non-work/unresolved/tracked summary rows.
+- **Legacy daily CSV:** original fixed columns; all responsibilities other than
+  the original `vd` and `sit` IDs are grouped as Additional.
+- **Legacy sessions CSV:** original four-column structure with current names.
 
-## GitHub Pages
+CSV names are quoted and spreadsheet-formula prefixes neutralized. Display
+rounding never changes stored durations.
 
-1. Push this folder to your GitHub repository's `main` branch.
-2. In repository Settings → Pages → Build and deployment, choose **GitHub Actions**.
-3. Run the included Deploy GitHub Pages workflow, or push to `main`.
+## Storage, migration and backups
 
-The workflow tests and builds before deploying only `dist/`. All paths are relative, supporting both repository and root Pages sites. See [GitHub's publishing documentation](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site).
+Records use IndexedDB. Display preferences and recoverable drafts use browser
+storage separately; a preference failure does not block an existing database.
+Records are not sent to GitHub, telemetry services or a backend.
 
-Public repository: https://github.com/Ravenstories/SDM_TimeManager. Pages: https://ravenstories.github.io/SDM_TimeManager/. Pages is configured to deploy through GitHub Actions.
+State version 2 contains `responsibilities`, `sessions`, `notes`, `active` and
+portable `preferences`. Entries reference `responsibilityId`; classification
+is resolved from the current responsibility settings.
 
-## Concept
+The database upgrades to version 2 to exclude older writers. v1 records migrate
+atomically and their original state is retained as a recovery point. Close old
+app windows when an upgrade is blocked. v1 backups remain accepted.
 
-See [concept art](docs/concept.png) and [generation brief](docs/concept-prompt.md). The original visual exploration showed countdowns; user feedback selected count-up tracking without budgets. The implementation follows that choice.
+Configured additional-clock history inherits its last known name/classification.
+If the configuration is missing, its history becomes archived **Legacy
+additional**, with unresolved classification. Classify it explicitly. Names or
+settings lost through prior reuse of the old extra slot cannot be reconstructed.
+
+**Data & recovery** previews the backup date range, responsibilities, records and
+replacement effects. Restore pauses an imported timer at its export timestamp,
+preserves the current records atomically in a checkpoint, and restores portable
+display preferences. A preview becomes stale if another tab changes records.
+
+Up to 14 checkpoints are kept: before the first mutation each local day, before
+restore, and during migration. They share the same browser storage as live data.
+Export JSON regularly and retain the file outside this browser. Export status
+records a download request, not proof that you kept the file.
+
+There are no accounts or cloud synchronization. Moving between devices requires
+a backup and replacement; it does not merge histories. Clearing browser data,
+private browsing or device loss can remove local records. Browser storage
+protection does not replace external backups.
+
+## Clock and offline behavior
+
+Elapsed time is reconstructed from timestamps across sleep, browser closure and
+midnight. The app does not execute while the browser is closed. Device timezone
+changes affect day boundaries; system-clock changes affect wall-clock accounting.
+No idle detection, automatic stop, budgets or scoring are used.
+
+The built shell is cached after the first online visit. Cache names are
+build-derived and scoped to the installation path. An update notice provides an
+explicit action after drafts are handled and other app windows close. Applying
+an update does not erase IndexedDB records. Install/pin availability depends on
+your browser.
+
+## Architecture and delivery
+
+- Pure rules: `domain.js`, `editing.js`, `reports.js`, `backup.js`.
+- Persistence: `indexed-repository.js`; v1 parsing lives in `legacy-domain.js`.
+- Focused views: responsibilities, notes, time entries, reports and recovery.
+- `app.js` coordinates state, day selection, timers and cross-tab refreshes.
+- `preferences.js` isolates optional browser-storage failures.
+- `updates.js` and `sw.js` coordinate explicit offline-shell upgrades.
+
+There are no runtime dependencies. Playwright and Prettier are development tools.
+GitHub Actions verifies pull requests and main pushes, deploys main only after
+passing checks, then runs a fresh browser smoke check against the published URL.
+See [release notes](CHANGELOG.md) and [release checklist](docs/release-checklist.md).
+
+Repository: https://github.com/Ravenstories/SDM_TimeManager
+
+App: https://ravenstories.github.io/SDM_TimeManager/

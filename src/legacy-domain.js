@@ -74,10 +74,7 @@ export function saveSession(state, session) {
 
   const otherSessions = state.sessions.filter((item) => item.id !== session.id);
   const occupied = state.active
-    ? [
-        ...otherSessions,
-        { ...state.active, end: Number.POSITIVE_INFINITY },
-      ]
+    ? [...otherSessions, { ...state.active, end: Number.POSITIVE_INFINITY }]
     : otherSessions;
   if (
     occupied.some(

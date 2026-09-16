@@ -35,6 +35,24 @@ millisecond edits, overlap rejection, historical note dates, draft reload,
 concurrent note edits, blocked preference storage, active correction and atomic
 rollback after a simulated storage failure.
 
-## Remaining milestone
+## 4. Reports, recovery and release readiness
 
-4. Reports, exports, restore previews, release gates and acceptance coverage.
+Completed shared work/non-work/unresolved totals, responsibility filters,
+calendar navigation, typed v2 daily/session exports and legacy formats.
+Restore previews include record counts, names, date range and timer treatment,
+with stale-preview protection and a checkpoint before replacement.
+
+Build versions and offline caches are installation-scoped. Explicit updates
+respect unfinished edits and other windows. A save-in-flight race found during
+update testing was fixed by locking forms while their transactions finish.
+Draft copies are isolated by window so another tab cannot clear an unfinished
+edit on reload.
+
+Validation: 42 unit tests and 23 Chromium browser tests passed. Coverage includes
+v1 upgrades, interrupted migration, blocked old connections, precise edits, DST,
+multi-tab conflicts, restore, CSV totals, offline reopening, scoped updates,
+keyboard focus, 390px layout and 200% CSS zoom. Desktop/mobile visual inspection
+also completed. See release-checklist.md for platform validation limits.
+
+Delivery is a review branch with four milestone commits. Production deployment
+remains pending merge; local tests are not evidence of a live v2 deployment.
