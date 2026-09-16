@@ -1,7 +1,8 @@
-export const ROLES = ["vd", "sit"];
+export const ROLES = ["vd", "sit", "extra"];
 export const emptyState = () => ({
   version: 1,
   active: null,
+  extraClock: null,
   sessions: [],
   notes: [],
 });
@@ -13,6 +14,13 @@ export function validateState(state) {
     state.version !== 1 ||
     !Array.isArray(state.sessions) ||
     !Array.isArray(state.notes) ||
+    (state.extraClock !== undefined &&
+      state.extraClock !== null &&
+      (!state.extraClock ||
+        typeof state.extraClock.name !== "string" ||
+        !state.extraClock.name.trim() ||
+        state.extraClock.name.length > 40 ||
+        typeof state.extraClock.countsAsWork !== "boolean")) ||
     (state.active !== null &&
       (!state.active ||
         !role(state.active.role) ||
@@ -52,6 +60,45 @@ export function switchRole(state, role, now, id) {
   next.active = role ? { role, start: now } : null;
   return next;
 }
+export function saveSession(state, session) {
+  if (
+    !session ||
+    typeof session.id !== "string" ||
+    !ROLES.includes(session.role) ||
+    !Number.isFinite(session.start) ||
+    !Number.isFinite(session.end) ||
+    session.start < 0 ||
+    session.end <= session.start
+  )
+    throw new Error("Enter a valid start and end time.");
+
+  const otherSessions = state.sessions.filter((item) => item.id !== session.id);
+  const occupied = state.active
+    ? [
+        ...otherSessions,
+        { ...state.active, end: Number.POSITIVE_INFINITY },
+      ]
+    : otherSessions;
+  if (
+    occupied.some(
+      (item) => session.start < item.end && session.end > item.start,
+    )
+  )
+    throw new Error("This entry overlaps another tracked session.");
+
+  return {
+    ...state,
+    sessions: [...otherSessions, { ...session }].sort(
+      (a, b) => a.start - b.start,
+    ),
+  };
+}
+export function removeSession(state, id) {
+  return {
+    ...state,
+    sessions: state.sessions.filter((session) => session.id !== id),
+  };
+}
 export function dayBounds(date) {
   const start = new Date(`${date}T00:00:00`);
   const end = new Date(start);
@@ -64,7 +111,7 @@ export function localDate(now = Date.now()) {
 }
 export function totals(state, date, now) {
   const [start, end] = dayBounds(date);
-  const result = { vd: 0, sit: 0 };
+  const result = { vd: 0, sit: 0, extra: 0 };
   const sessions = state.active
     ? [...state.sessions, { ...state.active, end: now }]
     : state.sessions;
@@ -84,4 +131,7 @@ export function duration(ms) {
   ]
     .map((n) => String(n).padStart(2, "0"))
     .join(":");
+}
+export function decimalHours(ms) {
+  return `${(Math.max(0, ms) / 3600000).toFixed(2)} h`;
 }

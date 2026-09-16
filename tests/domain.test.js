@@ -8,7 +8,13 @@ import {
   duration,
   validateState,
   dayBounds,
+  saveSession,
+  removeSession,
+  decimalHours,
 } from "../src/domain.js";
+test("exports the decimal-hour formatter used by the time header", () => {
+  assert.equal(typeof decimalHours, "function");
+});
 test("switch and pause preserve mutually exclusive time", () => {
   const now = new Date(2026, 8, 9, 9).getTime();
   let s = emptyState();
@@ -18,8 +24,52 @@ test("switch and pause preserve mutually exclusive time", () => {
   assert.deepEqual(totals(s, localDate(now), now + 99999), {
     vd: 60000,
     sit: 30000,
+    extra: 0,
   });
   assert.equal(s.active, null);
+});
+test("manual sessions can be added, edited, sorted, and removed", () => {
+  let state = emptyState();
+  state = saveSession(
+    state,
+    { id: "later", role: "sit", start: 200, end: 300 },
+  );
+  state = saveSession(
+    state,
+    { id: "early", role: "vd", start: 100, end: 150 },
+  );
+  assert.deepEqual(state.sessions.map((item) => item.id), ["early", "later"]);
+  state = saveSession(
+    state,
+    { id: "early", role: "sit", start: 110, end: 160 },
+  );
+  assert.equal(state.sessions[0].role, "sit");
+  assert.deepEqual(
+    removeSession(state, "later").sessions.map((item) => item.id),
+    ["early"],
+  );
+});
+test("manual sessions reject invalid and overlapping time", () => {
+  const state = saveSession(
+    emptyState(),
+    { id: "one", role: "vd", start: 100, end: 200 },
+  );
+  assert.throws(
+    () =>
+      saveSession(
+        state,
+        { id: "two", role: "sit", start: 150, end: 250 },
+      ),
+    /overlaps/,
+  );
+  assert.throws(
+    () =>
+      saveSession(
+        state,
+        { id: "two", role: "sit", start: 250, end: 250 },
+      ),
+    /valid start/,
+  );
 });
 test("sleep and reload use timestamps rather than ticks", () => {
   const now = new Date(2026, 8, 9, 9).getTime();
@@ -59,6 +109,24 @@ test("invalid records are rejected", () => {
 });
 test("formats long durations without wrapping", () =>
   assert.equal(duration(27 * 3600000 + 61000), "27:01:01"));
+test("formats decimal hours for time registration", () => {
+  assert.equal(decimalHours(90 * 60000), "1.50 h");
+  assert.equal(decimalHours(-1), "0.00 h");
+});
+test("validates configurable additional clocks", () => {
+  assert.doesNotThrow(() =>
+    validateState({
+      ...emptyState(),
+      extraClock: { name: "Break", countsAsWork: false },
+    }),
+  );
+  assert.throws(() =>
+    validateState({
+      ...emptyState(),
+      extraClock: { name: "", countsAsWork: false },
+    }),
+  );
+});
 test("local day boundaries follow calendar dates", () => {
   const [start, end] = dayBounds("2026-09-09");
   assert.equal(new Date(start).getHours(), 0);
