@@ -2,7 +2,7 @@ import { saveSession, removeSession, stopActive, dayBounds, responsibility } fro
 import { localInputValue, inputTimestamp } from "./editing.js";
 import { $, el, button, roleOptions, dateTime, errorAt } from "./ui.js";
 export function setupTime(ctx) {
-  let original=null,mode="new", opened=false, initialized=false;
+  let original=null,mode="new", opened=false, initialized=false, activeLabels=[];
   const values=()=>({start:$("time-entry-start").value,end:$("time-entry-end").value,responsibilityId:$("time-entry-role").value});
   function persist(){
     if(!opened)return;
@@ -10,9 +10,11 @@ export function setupTime(ctx) {
     preview();
   }
   function preview(){
-    const v=values(),start=inputTimestamp(v.start,original?.start),end=inputTimestamp(v.end,original?.end);
-    $("time-preview").textContent=Number.isFinite(start)&&Number.isFinite(end)&&end>=start?
-      "Duration: "+ctx.format(end-start)+(mode==="active"?" · Tracking stops only when you save.":""):"Choose a valid time interval.";
+    try {
+      const v=values(),start=inputTimestamp(v.start,original?.start),end=inputTimestamp(v.end,original?.end);
+      $("time-preview").textContent=end>=start?
+        "Duration: "+ctx.format(end-start)+(mode==="active"?" · Tracking stops only when you save.":""):"Choose a valid time interval.";
+    } catch { $("time-preview").textContent="Choose a valid local time interval."; }
   }
   function configure(){
     $("time-entry-start").disabled=mode==="active"; $("time-entry-role").disabled=mode==="active";
@@ -50,13 +52,15 @@ export function setupTime(ctx) {
     const [start,end]=dayBounds(ctx.getDay());
     const entries=[...s.sessions,...(s.active?[{...s.active,end:Date.now(),running:true}]:[])]
       .filter(e=>e.start<end&&e.end>=start).sort((a,b)=>a.start-b.start);
-    $("timeline").replaceChildren();
+    $("timeline").replaceChildren();activeLabels=[];
     if(!entries.length)$("timeline").append(el("p","No time recorded for this day. Add an entry or start a timer.","empty"));
     for(const e of entries){
       const row=el("article",undefined,"entry"+(e.running?" active":""));
       const duration=ctx.format(Math.max(0,Math.min(e.end,end)-Math.max(e.start,start)));
+      const label=el("span",duration+" on this day","hint");
       row.append(el("strong",responsibility(s,e.responsibilityId).name+(e.running?" · Running":"")),
-        el("p",dateTime(e.start)+" → "+(e.running?"Now":dateTime(e.end))),el("span",duration+" on this day","hint"));
+        el("p",dateTime(e.start)+" → "+(e.running?"Now":dateTime(e.end))),label);
+      if(e.running)activeLabels.push({label,start:e.start});
       const actions=el("div",undefined,"actions");
       if(e.running)actions.append(button("Stop now",()=>ctx.pause()),button("Stop at…",()=>open(s.active,true)));
       else actions.append(button("Edit",()=>open(e),"Edit time "+e.id),button("Delete",async()=>{
@@ -66,12 +70,15 @@ export function setupTime(ctx) {
     }
   }
   $("time-entry-form").onsubmit=async e=>{
-    e.preventDefault();const expected=original,v=values(),now=Date.now();
+    e.preventDefault();
+    try {
+    const expected=original,v=values(),now=Date.now();
     const entry={id:expected?.id||crypto.randomUUID(),responsibilityId:v.responsibilityId,
       start:inputTimestamp(v.start,expected?.start),end:inputTimestamp(v.end,expected?.end)};
     const ok=await ctx.change(s=>mode==="active"?stopActive(s,entry.end,now,expected):saveSession(s,entry,now,expected),
       mode==="active"?"Tracking stopped":"Time entry saved","time-entry-error");
     if(ok)close(true);else $("reload-time-entry").hidden=!original;
+    } catch(error) { errorAt("time-entry-error",error); }
   };
   $("reload-time-entry").onclick=()=>{
     if(!confirm("Discard your edits and reload the latest entry?"))return;
@@ -81,6 +88,9 @@ export function setupTime(ctx) {
   for(const id of ["time-entry-start","time-entry-end","time-entry-role"])$(id).addEventListener("input",persist);
   $("manage-time").onclick=()=>open();$("close-time-editor").onclick=()=>close();$("cancel-time-entry").onclick=()=>close();
   $("time-editor").oncancel=e=>{e.preventDefault();close();};
-  return {render,hasDrafts:()=>opened,openActive:()=>{if(ctx.getState().active)open(ctx.getState().active,true);}};
+  return {render,hasDrafts:()=>opened,openActive:()=>{if(ctx.getState().active)open(ctx.getState().active,true);},
+    tick:()=>{
+      const [start,end]=dayBounds(ctx.getDay());
+      for(const item of activeLabels)item.label.textContent=ctx.format(Math.max(0,Math.min(Date.now(),end)-Math.max(item.start,start)))+" on this day";
+    }};
 }
-

@@ -15,6 +15,7 @@ let state,repository,selectedDay=localDate(),lastToday=localDate(),busy=false;
 const warn=message=>errorAt("preference-warning",message);
 const prefs=preferences(warn);
 let timeFormat=prefs.get("time-format","clock"),compact=prefs.get("compact","false")==="true";
+let dismissedReview=prefs.get("review-dismissed");
 if(!["clock","decimal"].includes(timeFormat))timeFormat="clock";
 const format=ms=>timeFormat==="decimal"?decimalHours(ms):duration(ms);
 const channel="BroadcastChannel" in window?new BroadcastChannel(KEY):null;
@@ -61,7 +62,7 @@ function renderClocks(){
   available.slice(0,3).forEach((r,index)=>{
     const card=button("",()=>activate(r.id));card.className="clock";card.dataset.responsibilityId=r.id;
     // Stable default IDs preserve bookmarked automation while all behavior uses responsibility IDs.
-    card.id=r.id;
+    card.id=["vd","sit","extra"].includes(r.id)?r.id:"clock-"+r.id;
     const value=el("span","", "clock-time"),action=el("span","", "clock-action");
     card.append(el("span",r.name,"clock-name"),el("span",r.classification==="work"?"Work":"Non-work","clock-kind"),
       value,el("span","tracked today","clock-caption"),action);
@@ -92,8 +93,7 @@ function tick(){
   const selectedTotals=totals(state,selectedDay,now);
   renderTotals($("day-totals"),selectedTotals,format);renderBreakdown($("day-breakdown"),state,selectedTotals,format);
   $("viewing-day").textContent=selectedDay===today?"Today · "+selectedDay:"Reviewing "+selectedDay+" · The live timer above always shows today.";
-  const dismissed=prefs.get("review-dismissed");
-  $("long-review").hidden=!needsReview(state.active,now)||dismissed===state.active?.id;
+  $("long-review").hidden=!needsReview(state.active,now)||dismissedReview===state.active?.id;
   if(!$("long-review").hidden)$("review-description").textContent=activeRole.name+" has been running since "+new Date(state.active.start).toLocaleString()+". Keep the time or choose when it should have stopped.";
   time.tick?.();
 }
@@ -120,7 +120,7 @@ $("time-format").onchange=()=>{timeFormat=$("time-format").value;prefs.set("time
 $("compact").onclick=()=>{compact=!compact;prefs.set("compact",String(compact));applyDisplay();};
 $("pause").onclick=()=>activate(null);$("start-selected").onclick=()=>activate($("more-clocks").value);
 $("stop-at").onclick=time.openActive;$("review-choose").onclick=time.openActive;$("review-stop").onclick=()=>activate(null);
-$("keep-tracking").onclick=()=>{if(state?.active)prefs.set("review-dismissed",state.active.id);tick();};
+$("keep-tracking").onclick=()=>{if(state?.active){dismissedReview=state.active.id;prefs.set("review-dismissed",dismissedReview);}tick();};
 $("help").onclick=()=>$("help-dialog").showModal();$("close-help").onclick=()=>$("help-dialog").close();
 document.addEventListener("keydown",event=>{
   if(event.repeat||event.ctrlKey||event.metaKey||event.altKey||document.querySelector("dialog[open]")||
@@ -144,4 +144,3 @@ try{
 }catch(e){errorAt("error",e.message+" Existing records have not been replaced. Close older app windows and reopen this app.");$("save-status").textContent="Records unavailable";}
 setInterval(tick,1000);
 setupUpdates({hasDrafts:ctx.hasDrafts,warn});
-

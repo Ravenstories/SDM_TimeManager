@@ -51,10 +51,13 @@ export function setupNotes(ctx) {
     }
   }
   $("note-form").onsubmit=async e=>{
-    e.preventDefault();const expected=original;
+    e.preventDefault();
+    try {
+    const expected=original;
     const note={id:expected?.id||crypto.randomUUID(),text:$("note").value,responsibilityId:$("note-role").value,at:inputTimestamp($("note-at").value,expected?.at)};
     if(await ctx.change(s=>saveNote(s,note,expected),"Note saved","note-error")){reset();ctx.showDay(localDate(note.at));}
     else $("reload-note").hidden=!original;
+    } catch(error) { errorAt("note-error",error); }
   };
   $("cancel-note").onclick=()=>{if(!dirty()||confirm("Discard this unfinished note?"))reset();};
   $("reload-note").onclick=()=>{

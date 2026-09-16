@@ -23,7 +23,18 @@ Validation: 41 unit tests, static build, and 6 Chromium browser tests passed,
 including migration, corrupt-record preservation, archive while tracking, and
 overflow switching. Browser workers are bounded to two on this host.
 
-## Remaining milestones
+## 3. Daily workflow
 
-3. Daily timeline, correction, dated notes, long-session review, draft recovery.
+Completed the selected-day timeline, dated notes, active stop-at preview,
+long-session review and per-session dismissal, compact preference, locally
+recoverable note/time-entry drafts and explicit conflict reload/cancel actions.
+Timestamp comparison also preserves the original instant in a repeated DST hour.
+
+Validation: 41 unit tests and 13 Chromium browser checks passed, covering
+millisecond edits, overlap rejection, historical note dates, draft reload,
+concurrent note edits, blocked preference storage, active correction and atomic
+rollback after a simulated storage failure.
+
+## Remaining milestone
+
 4. Reports, exports, restore previews, release gates and acceptance coverage.
