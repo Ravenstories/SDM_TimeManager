@@ -41,7 +41,7 @@ const ctx = {
   prefs,
   warn,
   portablePreferences: () => ({ timeFormat, compact }),
-  hasDrafts: () => controllers.some((c) => c.hasDrafts?.()),
+  hasDrafts: () => busy || controllers.some((c) => c.hasDrafts?.()),
   pause: () => activate(null),
   showDay,
   change,

@@ -7,9 +7,12 @@ test("built app boots, saves a note, and preserves an active timer across reload
   await page.goto("/");
   await expect(page.locator("#save-status")).toHaveText("Saved on this device");
   await page.locator("#vd").click();
+  await expect(page.locator("#vd")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#save-status")).toHaveText("Saved on this device");
   await page.reload();
   await expect(page.locator("#vd")).toHaveAttribute("aria-pressed", "true");
   await page.locator("#pause").click();
+  await expect(page.locator("#vd")).toHaveAttribute("aria-pressed", "false");
   await page.locator("#note").fill("Browser regression note");
   await page.locator("#note-form button[type=submit]").click();
   await expect(page.locator("#note-count")).toHaveText("0 / 5000");
