@@ -1,4 +1,10 @@
-import { localDate, totals } from "./domain.js";
+import { isExtraRole, localDate, totals } from "./domain.js";
+
+const additionalTotal = (time) =>
+  Object.entries(time).reduce(
+    (sum, [role, value]) => sum + (isExtraRole(role) ? value : 0),
+    0,
+  );
 
 /** Calendar boundaries use the device timezone, including DST transitions. */
 export function reportRange(period, anchor) {
@@ -36,10 +42,11 @@ export function createReport(state, period, anchor, now) {
     const notes = state.notes.filter(
       (note) => localDate(note.at) === date,
     ).length;
-    days.push({ date, ...time, notes });
+    const extra = additionalTotal(time);
+    days.push({ date, vd: time.vd, sit: time.sit, extra, notes });
     total.vd += time.vd;
     total.sit += time.sit;
-    total.extra += time.extra;
+    total.extra += extra;
     day.setDate(day.getDate() + 1);
   }
   return {

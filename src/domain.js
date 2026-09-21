@@ -1,19 +1,38 @@
-export const ROLES = ["vd", "sit", "extra"];
+export const CORE_ROLES = ["vd", "sit"];
+export const isExtraRole = (role) =>
+  typeof role === "string" && /^extra(?:-[a-z0-9-]{1,64})?$/i.test(role);
+export const isRole = (role) => CORE_ROLES.includes(role) || isExtraRole(role);
 export const emptyState = () => ({
   version: 1,
   active: null,
-  extraClock: null,
+  extraClocks: [],
   sessions: [],
   notes: [],
 });
+export function getExtraClocks(state) {
+  if (Array.isArray(state.extraClocks)) return state.extraClocks;
+  return state.extraClock ? [{ id: "extra", ...state.extraClock }] : [];
+}
 export function validateState(state) {
   const time = (x) => Number.isFinite(x) && x >= 0 && x <= 8640000000000000;
-  const role = (x) => ROLES.includes(x);
+  const role = (x) => isRole(x);
+  const clock = (x) =>
+    x &&
+    isExtraRole(x.id) &&
+    typeof x.name === "string" &&
+    Boolean(x.name.trim()) &&
+    x.name.length <= 40 &&
+    typeof x.countsAsWork === "boolean";
   if (
     !state ||
     state.version !== 1 ||
     !Array.isArray(state.sessions) ||
     !Array.isArray(state.notes) ||
+    (state.extraClocks !== undefined &&
+      (!Array.isArray(state.extraClocks) ||
+        !state.extraClocks.every(clock) ||
+        new Set(state.extraClocks.map((item) => item.id)).size !==
+          state.extraClocks.length)) ||
     (state.extraClock !== undefined &&
       state.extraClock !== null &&
       (!state.extraClock ||
@@ -48,7 +67,12 @@ export function validateState(state) {
   return state;
 }
 export function switchRole(state, role, now, id) {
-  if (role !== null && !ROLES.includes(role)) throw new Error("Unknown role");
+  if (
+    role !== null &&
+    !CORE_ROLES.includes(role) &&
+    !getExtraClocks(state).some((clock) => clock.id === role)
+  )
+    throw new Error("Unknown role");
   if (state.active?.role === role) return state;
   const next = structuredClone(state);
   if (next.active)
@@ -64,7 +88,7 @@ export function saveSession(state, session) {
   if (
     !session ||
     typeof session.id !== "string" ||
-    !ROLES.includes(session.role) ||
+    !isRole(session.role) ||
     !Number.isFinite(session.start) ||
     !Number.isFinite(session.end) ||
     session.start < 0 ||
@@ -111,10 +135,16 @@ export function localDate(now = Date.now()) {
 }
 export function totals(state, date, now) {
   const [start, end] = dayBounds(date);
-  const result = { vd: 0, sit: 0, extra: 0 };
   const sessions = state.active
     ? [...state.sessions, { ...state.active, end: now }]
     : state.sessions;
+  const roles = new Set([
+    ...CORE_ROLES,
+    "extra",
+    ...getExtraClocks(state).map((clock) => clock.id),
+    ...sessions.map((session) => session.role),
+  ]);
+  const result = Object.fromEntries([...roles].map((role) => [role, 0]));
   for (const s of sessions)
     result[s.role] += Math.max(
       0,

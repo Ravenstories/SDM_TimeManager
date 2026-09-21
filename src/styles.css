@@ -743,10 +743,26 @@ dialog p {
   display: grid;
   gap: 12px;
 }
-.extra-clock-settings > label:not(.check-label) {
+.extra-clock-settings > label:not(.check-label),
+.extra-clock-row > label:not(.check-label) {
   display: grid;
   gap: 5px;
   font-size: 12px;
+}
+.extra-clock-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+.extra-clock-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) auto auto;
+  align-items: end;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid #dce2da;
+  border-radius: 9px;
+  background: #f7f8f5;
 }
 .check-label {
   display: flex;
@@ -840,8 +856,8 @@ body.compact .timer-controls {
   .clocks.has-extra {
     grid-template-columns: 1fr 1fr;
   }
-  .clocks.has-extra .extra {
-    grid-column: 1 / -1;
+  .extra-clock-row {
+    grid-template-columns: 1fr;
   }
   .clock {
     padding: 16px 14px 14px;

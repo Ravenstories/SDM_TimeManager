@@ -126,6 +126,36 @@ test("validates configurable additional clocks", () => {
       extraClock: { name: "", countsAsWork: false },
     }),
   );
+  const manyClocks = Array.from({ length: 12 }, (_, index) => ({
+    id: `extra-clock-${index + 1}`,
+    name: `Task ${index + 1}`,
+    countsAsWork: true,
+  }));
+  assert.doesNotThrow(() =>
+    validateState({ ...emptyState(), extraClocks: manyClocks }),
+  );
+  assert.throws(() =>
+    validateState({
+      ...emptyState(),
+      extraClocks: [manyClocks[0], manyClocks[0]],
+    }),
+  );
+});
+test("tracks any number of configured clocks independently", () => {
+  const now = new Date(2026, 8, 9, 9).getTime();
+  let state = {
+    ...emptyState(),
+    extraClocks: [
+      { id: "extra-planning", name: "Planning", countsAsWork: true },
+      { id: "extra-meeting", name: "Meeting", countsAsWork: true },
+    ],
+  };
+  state = switchRole(state, "extra-planning", now, "a");
+  state = switchRole(state, "extra-meeting", now + 60000, "b");
+  state = switchRole(state, null, now + 180000, "c");
+  const time = totals(state, localDate(now), now + 180000);
+  assert.equal(time["extra-planning"], 60000);
+  assert.equal(time["extra-meeting"], 120000);
 });
 test("local day boundaries follow calendar dates", () => {
   const [start, end] = dayBounds("2026-09-09");

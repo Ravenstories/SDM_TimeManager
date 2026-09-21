@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f7f8f5" />
     <meta
       name="description"
-      content="A quiet, two-role work timer for VD and SIT."
+      content="A quiet, flexible work timer for SDM responsibilities."
     />
     <title>SDM Time Manager</title>
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
@@ -36,8 +36,8 @@
       <section class="intro">
         <div>
           <p class="eyebrow" id="today-label">YOUR WORKDAY</p>
-          <h1>Make time for both.</h1>
-          <p class="subtitle">Two responsibilities. One thing at a time.</p>
+          <h1>Make time for what matters.</h1>
+          <p class="subtitle">Many responsibilities. One thing at a time.</p>
         </div>
         <span id="work-status" class="status">Ready when you are</span>
       </section>
@@ -72,23 +72,6 @@
             ><span id="sit-action"
               >Start SIT <span aria-hidden="true">↗</span></span
             ><kbd>2</kbd></span
-          >
-        </button>
-        <button class="clock extra" id="extra" aria-pressed="false" hidden>
-          <span class="card-heading"
-            ><span
-              ><span class="role-title"
-                ><i></i><span id="extra-title">Other</span></span
-              ><span class="role-description" id="extra-description"
-                >Additional clock</span
-              ></span
-            ><span class="badge" id="extra-badge">Ready</span></span
-          ><span class="time" id="extra-time">00:00:00</span
-          ><span class="time-caption">tracked today</span
-          ><span class="card-bottom"
-            ><span id="extra-action"
-              >Start <span aria-hidden="true">↗</span></span
-            ></span
           >
         </button>
       </section>
@@ -141,9 +124,6 @@
               <select id="note-role">
                 <option value="vd">VD · SDM</option>
                 <option value="sit">SIT · Servicedesk</option>
-                <option value="extra" id="note-extra-role" hidden>
-                  Additional clock
-                </option>
               </select></label
             ><button type="submit" class="primary">
               Add note <span aria-hidden="true">↗</span>
@@ -161,7 +141,7 @@
       </section>
       <footer>
         <span><i class="dot vd-dot"></i> Saved on this device</span
-        ><span>1 / 2 to switch · Space to pause</span>
+        ><span>1–9 to switch · Space to pause</span>
       </footer>
     </main>
     <div id="announcement" class="sr-only" role="status"></div>
@@ -293,11 +273,15 @@
         Keyboard shortcuts work while this app has focus, outside text fields.
         They are not global desktop shortcuts.
       </p>
-      <h3>Additional clock</h3>
+      <h3>Additional clocks</h3>
       <p>
-        Add a temporary clock for ad hoc work, meetings, or breaks. Removing it
-        keeps its history.
+        Add as many clocks as you need for ad hoc work, meetings, or breaks.
+        They appear three per row on larger screens. Removing one keeps its
+        history.
       </p>
+      <p id="extra-clock-count" class="hint">0 additional clocks</p>
+      <div id="extra-clock-list" class="extra-clock-list"></div>
+      <h4>Add another clock</h4>
       <div class="extra-clock-settings">
         <label
           >Name
@@ -311,8 +295,7 @@
           work total</label
         >
         <div class="data-actions">
-          <button id="save-extra-clock">Save clock</button>
-          <button id="remove-extra-clock" hidden>Remove clock</button>
+          <button id="save-extra-clock">Add clock</button>
         </div>
       </div>
     </dialog>
@@ -336,9 +319,6 @@
             <select id="time-entry-role">
               <option value="vd">VD · SDM</option>
               <option value="sit">SIT · Servicedesk</option>
-              <option value="extra" id="time-entry-extra" hidden>
-                Additional clock
-              </option>
             </select>
           </label>
           <label

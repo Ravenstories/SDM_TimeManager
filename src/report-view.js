@@ -1,5 +1,10 @@
 import { createReport, reportCsv } from "./reports.js";
-import { duration, decimalHours, localDate } from "./domain.js";
+import {
+  duration,
+  decimalHours,
+  getExtraClocks,
+  localDate,
+} from "./domain.js";
 
 export function setupReports({ getState, download, showDay }) {
   const $ = (id) => document.getElementById(id);
@@ -20,11 +25,13 @@ export function setupReports({ getState, download, showDay }) {
     $("report-vd").textContent = format(report.total.vd);
     $("report-sit").textContent = format(report.total.sit);
     $("report-extra").textContent = format(report.total.extra);
-    $("report-extra-label").textContent =
-      getState().extraClock?.name || "Additional";
+    const extraClocks = getExtraClocks(getState());
+    const extraLabel =
+      extraClocks.length === 1 ? extraClocks[0].name : "Additional clocks";
+    $("report-extra-label").textContent = extraLabel;
     $("report-total").textContent = format(total);
     $("report-description").textContent =
-      `${report.start} to ${report.days.at(-1).date} · ${report.trackedDays} tracked days · ${total ? Math.round((report.total.vd / total) * 100) : 0}% VD / ${total ? Math.round((report.total.sit / total) * 100) : 0}% SIT${report.total.extra ? ` / ${Math.round((report.total.extra / total) * 100)}% ${getState().extraClock?.name || "Additional"}` : ""}`;
+      `${report.start} to ${report.days.at(-1).date} · ${report.trackedDays} tracked days · ${total ? Math.round((report.total.vd / total) * 100) : 0}% VD / ${total ? Math.round((report.total.sit / total) * 100) : 0}% SIT${report.total.extra ? ` / ${Math.round((report.total.extra / total) * 100)}% ${extraLabel}` : ""}`;
     $("report-rows").replaceChildren();
     for (const day of report.days.filter(
       (day) => day.vd + day.sit + day.extra > 0 || day.notes,
