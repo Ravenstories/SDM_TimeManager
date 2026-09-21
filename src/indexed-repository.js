@@ -1,4 +1,5 @@
 import { emptyState, validateState, localDate } from "./domain.js";
+import { migrateStoredState } from "./migration.js";
 import { KEY } from "./storage.js";
 
 /** IndexedDB serializes read/write transactions across all tabs. */
@@ -16,15 +17,23 @@ export class IndexedRepository {
   }
   async open() {
     this.db = await new Promise((resolve, reject) => {
-      const request = this.database.open(this.name, 1);
-      request.onupgradeneeded = () =>
-        request.result.createObjectStore("records");
-      request.onsuccess = () => resolve(request.result);
+      const request = this.database.open(this.name, 3);
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains("records"))
+          request.result.createObjectStore("records");
+      };
+      let blocked = false;
+      request.onsuccess = () => {
+        if (blocked) request.result.close();
+        else resolve(request.result);
+      };
       request.onerror = () => reject(request.error);
-      request.onblocked = () =>
+      request.onblocked = () => {
+        blocked = true;
         reject(
           new Error("Close other app tabs to finish the storage upgrade."),
         );
+      };
     });
     this.db.onversionchange = () => this.db.close();
     await this.transaction("readwrite", (store) => {
@@ -32,12 +41,39 @@ export class IndexedRepository {
       request.onsuccess = () => {
         try {
           if (request.result !== undefined) {
-            validateState(request.result);
+            const migrated = migrateStoredState(request.result);
+            if (request.result.version === 2) {
+              // A separate, permanent copy survives rotation of recovery points.
+              store.put(
+                structuredClone(request.result),
+                "before-v2-compatibility",
+              );
+              const history = store.get("checkpoints");
+              history.onsuccess = () => {
+                try {
+                  store.put(
+                    [
+                      ...(history.result || []),
+                      {
+                        id: crypto.randomUUID(),
+                        at: this.now(),
+                        reason: "Before compatibility repair",
+                        state: request.result,
+                      },
+                    ].slice(-14),
+                    "checkpoints",
+                  );
+                  store.put(migrated, "current");
+                } catch (error) {
+                  this.abort(store, error);
+                }
+              };
+            }
             return;
           }
           const raw = this.legacy.getItem(KEY);
           const state =
-            raw === null ? emptyState() : validateState(JSON.parse(raw));
+            raw === null ? emptyState() : migrateStoredState(JSON.parse(raw));
           store.put(state, "current");
           store.put([], "checkpoints");
           store.put({ migratedAt: this.now(), lastExportAt: null }, "meta");

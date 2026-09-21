@@ -50,3 +50,17 @@ Public repository: https://github.com/Ravenstories/SDM_TimeManager. Pages: https
 ## Concept
 
 See [concept art](docs/concept.png) and [generation brief](docs/concept-prompt.md). The original visual exploration showed countdowns; user feedback selected count-up tracking without budgets. The implementation follows that choice.
+
+## Database compatibility
+
+The browser database uses IndexedDB version 3. It accepts the original timer records
+and converts responsibility-based version 2 records from the development release.
+Conversion preserves session timestamps, notes, custom labels, classification and
+archive metadata; archived or unclassified clocks remain unavailable for starting.
+The original v2 state is kept in `records/before-v2-compatibility` and a recovery
+point, in the same transaction as the converted records. Existing metadata and
+recovery points are retained. v2 JSON backups can also be restored.
+
+Run `npm ci` before `npm test`. Storage regression tests use `fake-indexeddb`
+(a development dependency only) and cover database versions 1 and 2, new databases,
+preservation, reopening, and rejection of malformed records.

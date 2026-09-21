@@ -1,6 +1,6 @@
 export const CORE_ROLES = ["vd", "sit"];
 export const isExtraRole = (role) =>
-  typeof role === "string" && /^extra(?:-[a-z0-9-]{1,64})?$/i.test(role);
+  typeof role === "string" && /^extra(?:-[a-z0-9-]{1,210})?$/i.test(role);
 export const isRole = (role) => CORE_ROLES.includes(role) || isExtraRole(role);
 export const emptyState = () => ({
   version: 1,
@@ -14,6 +14,10 @@ export function getExtraClocks(state) {
   if (Array.isArray(state.extraClocks)) return state.extraClocks;
   return state.extraClock ? [{ id: "extra", ...state.extraClock }] : [];
 }
+export const getAvailableClocks = (state) =>
+  getExtraClocks(state).filter(
+    (clock) => !clock.archived && clock.classification !== "unresolved",
+  );
 export function validateState(state) {
   const time = (x) => Number.isFinite(x) && x >= 0 && x <= 8640000000000000;
   const role = (x) => isRole(x);
@@ -79,7 +83,7 @@ export function switchRole(state, role, now, id) {
   if (
     role !== null &&
     !CORE_ROLES.includes(role) &&
-    !getExtraClocks(state).some((clock) => clock.id === role)
+    !getAvailableClocks(state).some((clock) => clock.id === role)
   )
     throw new Error("Unknown role");
   if (state.active?.role === role) return state;
@@ -149,7 +153,7 @@ export function scheduleSwitch(state, toRole, at, now) {
   if (!state.active) throw new Error("Start a timer before scheduling a switch.");
   const available = [
     ...CORE_ROLES,
-    ...getExtraClocks(state).map((clock) => clock.id),
+    ...getAvailableClocks(state).map((clock) => clock.id),
   ];
   if (!available.includes(toRole) || toRole === state.active.role)
     throw new Error("Choose a different available timer.");

@@ -1,9 +1,10 @@
-const CACHE = "sdm-shell-v9";
+const CACHE = "sdm-shell-v10";
 const FILES = [
   "./",
   "./index.html",
   "./src/app.js",
   "./src/domain.js",
+  "./src/migration.js",
   "./src/storage.js",
   "./src/indexed-repository.js",
   "./src/reports.js",
