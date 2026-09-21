@@ -236,14 +236,6 @@ a:focus-visible {
   gap: 8px;
   align-items: center;
 }
-.display-mode {
-  font-size: 10px;
-  color: #65766a;
-}
-.display-mode select {
-  max-width: 110px;
-  margin-left: 4px;
-}
 .quiet {
   background: transparent;
   border-color: transparent;
@@ -405,6 +397,9 @@ h3 {
   font-weight: 450;
   opacity: 0.8;
 }
+.time-caption strong {
+  font-weight: 650;
+}
 .card-bottom {
   border-top: 1px solid #36574522;
   margin-top: 29px;
@@ -424,6 +419,7 @@ kbd {
 }
 .timer-controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 18px;
@@ -721,6 +717,27 @@ dialog {
   color: inherit;
   background: #fafbf8;
 }
+#active-start-editor,
+#scheduled-switch-editor {
+  max-width: 460px;
+}
+#active-start-form > label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+.switch-fields {
+  grid-template-columns: 1fr 1fr;
+}
+.number-field {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 5px;
+}
+.number-field input {
+  margin: 0;
+}
 dialog::backdrop {
   background: #172e2566;
   backdrop-filter: blur(3px);
@@ -743,10 +760,26 @@ dialog p {
   display: grid;
   gap: 12px;
 }
-.extra-clock-settings > label:not(.check-label) {
+.extra-clock-settings > label:not(.check-label),
+.extra-clock-row > label:not(.check-label) {
   display: grid;
   gap: 5px;
   font-size: 12px;
+}
+.extra-clock-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+.extra-clock-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) auto auto;
+  align-items: end;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid #dce2da;
+  border-radius: 9px;
+  background: #f7f8f5;
 }
 .check-label {
   display: flex;
@@ -840,8 +873,8 @@ body.compact .timer-controls {
   .clocks.has-extra {
     grid-template-columns: 1fr 1fr;
   }
-  .clocks.has-extra .extra {
-    grid-column: 1 / -1;
+  .extra-clock-row {
+    grid-template-columns: 1fr;
   }
   .clock {
     padding: 16px 14px 14px;

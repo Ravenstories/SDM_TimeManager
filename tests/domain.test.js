@@ -11,6 +11,9 @@ import {
   saveSession,
   removeSession,
   decimalHours,
+  adjustActiveStart,
+  applyScheduledSwitch,
+  scheduleSwitch,
 } from "../src/domain.js";
 test("exports the decimal-hour formatter used by the time header", () => {
   assert.equal(typeof decimalHours, "function");
@@ -82,6 +85,58 @@ test("same role does not restart session", () => {
   const s = switchRole(emptyState(), "vd", 100, "a");
   assert.equal(switchRole(s, "vd", 200, "b"), s);
 });
+test("active timer start can be adjusted without stopping it", () => {
+  const now = new Date(2026, 8, 9, 9).getTime();
+  const state = switchRole(emptyState(), "vd", now, "a");
+  const adjusted = adjustActiveStart(state, now - 10 * 60000, now + 60000);
+  assert.deepEqual(adjusted.active, {
+    role: "vd",
+    start: now - 10 * 60000,
+  });
+  assert.equal(adjusted.sessions.length, 0);
+  assert.equal(totals(adjusted, localDate(now), now).vd, 10 * 60000);
+});
+test("active timer start cannot overlap history or be in the future", () => {
+  const state = {
+    ...emptyState(),
+    active: { role: "sit", start: 300 },
+    sessions: [{ id: "previous", role: "vd", start: 100, end: 250 }],
+  };
+  assert.throws(() => adjustActiveStart(state, 200, 400), /overlaps/);
+  assert.throws(() => adjustActiveStart(state, 500, 400), /future/);
+  assert.throws(() => adjustActiveStart(emptyState(), 100, 400), /No timer/);
+});
+test("scheduled switch closes the current session at the deadline", () => {
+  let state = switchRole(emptyState(), "vd", 100, "start");
+  state = scheduleSwitch(state, "sit", 400, 200);
+  assert.equal(applyScheduledSwitch(state, 399, "switch"), state);
+  state = applyScheduledSwitch(state, 800, "switch");
+  assert.deepEqual(state.active, { role: "sit", start: 400 });
+  assert.deepEqual(state.sessions[0], {
+    role: "vd",
+    start: 100,
+    end: 400,
+    id: "switch",
+  });
+  assert.equal(state.scheduledSwitch, null);
+});
+test("manual pause or role change cancels a scheduled switch", () => {
+  let state = switchRole(emptyState(), "vd", 100, "start");
+  state = scheduleSwitch(state, "sit", 400, 200);
+  assert.equal(switchRole(state, "sit", 300, "manual").scheduledSwitch, null);
+  let pausedState = switchRole(emptyState(), "vd", 100, "start");
+  pausedState = scheduleSwitch(pausedState, "sit", 400, 200);
+  assert.equal(
+    switchRole(pausedState, null, 300, "pause").scheduledSwitch,
+    null,
+  );
+});
+test("scheduled switches require a future deadline and another timer", () => {
+  const state = switchRole(emptyState(), "vd", 100, "start");
+  assert.throws(() => scheduleSwitch(state, "vd", 400, 200), /different/);
+  assert.throws(() => scheduleSwitch(state, "sit", 200, 200), /greater/);
+  assert.throws(() => scheduleSwitch(emptyState(), "sit", 400, 200), /Start/);
+});
 test("midnight splits an active session into local days", () => {
   const start = new Date(2026, 8, 9, 23, 30).getTime(),
     end = new Date(2026, 8, 10, 0, 30).getTime();
@@ -126,6 +181,36 @@ test("validates configurable additional clocks", () => {
       extraClock: { name: "", countsAsWork: false },
     }),
   );
+  const manyClocks = Array.from({ length: 12 }, (_, index) => ({
+    id: `extra-clock-${index + 1}`,
+    name: `Task ${index + 1}`,
+    countsAsWork: true,
+  }));
+  assert.doesNotThrow(() =>
+    validateState({ ...emptyState(), extraClocks: manyClocks }),
+  );
+  assert.throws(() =>
+    validateState({
+      ...emptyState(),
+      extraClocks: [manyClocks[0], manyClocks[0]],
+    }),
+  );
+});
+test("tracks any number of configured clocks independently", () => {
+  const now = new Date(2026, 8, 9, 9).getTime();
+  let state = {
+    ...emptyState(),
+    extraClocks: [
+      { id: "extra-planning", name: "Planning", countsAsWork: true },
+      { id: "extra-meeting", name: "Meeting", countsAsWork: true },
+    ],
+  };
+  state = switchRole(state, "extra-planning", now, "a");
+  state = switchRole(state, "extra-meeting", now + 60000, "b");
+  state = switchRole(state, null, now + 180000, "c");
+  const time = totals(state, localDate(now), now + 180000);
+  assert.equal(time["extra-planning"], 60000);
+  assert.equal(time["extra-meeting"], 120000);
 });
 test("local day boundaries follow calendar dates", () => {
   const [start, end] = dayBounds("2026-09-09");

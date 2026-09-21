@@ -1,6 +1,6 @@
 # SDM Time Manager
 
-A lightweight, local-first chess clock for **VD · SDM** and **SIT · SDM / Servicedesk**. Counts up, with exactly one active responsibility. No runtime dependencies or backend.
+A lightweight, local-first chess clock for **VD · SDM**, **SIT · SDM / Servicedesk**, and any number of additional responsibilities. Counts up, with exactly one active responsibility. No runtime dependencies or backend.
 
 ## Run
 
@@ -8,7 +8,7 @@ Use Node.js 22 or later. Run `npm start` and open http://127.0.0.1:4173. Run `np
 
 ## Use
 
-Click a role to start or switch. Pause for breaks or at the end of the day. While the page has focus, 1 and 2 select roles and Space pauses. Shortcuts are ignored inside controls. Compact view reduces the interface to the clocks. Choose clock or decimal-hour display from the header; the preference is kept in this browser. Notes are attached to a role and the current day; the date picker shows previous notes and totals. Use **Edit time** to add, correct, or delete completed entries for the selected day. Saved notes can also be edited or deleted. **Data & help** can add one named clock for ad hoc work, meetings, or breaks and optionally exclude it from the work total. Removing that clock keeps its history.
+Click a role to start or switch. Pause for breaks or at the end of the day. Every clock shows both hours:minutes:seconds and decimal hours. **Adjust start time** corrects the running session without stopping it, for example when work began a few minutes before the timer was started. The adjusted start cannot overlap existing tracked time. **Auto-switch** keeps the current timer running for a chosen number of minutes and then switches to another timer. A manual pause or role change cancels it. If the app is closed at the deadline, it applies the handoff at the planned time when it next opens. While the page has focus, keys 1–9 select the first nine visible roles and Space pauses. Shortcuts are ignored inside controls. Compact view reduces the interface to the clocks. Notes are attached to a role and the current day; the date picker shows previous notes and totals. Use **Edit time** to add, correct, or delete completed entries for the selected day. Saved notes can also be edited or deleted. **Data & help** can add any number of named clocks for ad hoc work, meetings, or breaks and optionally exclude each one from the work total. The clock grid adds a new row after every three clocks on larger screens. Removing a clock keeps its history.
 
 The home screen is for daily work. **Reports** provides daily, weekly, monthly, and yearly views, with totals per responsibility, percentage split, tracked days, and a daily breakdown. Weeks begin on Monday. Select a date in a report to open its notes. Report CSV exports all days in the selected calendar period, including zero-activity days, with decimal hours. Running time is included up to the most recent refresh.
 

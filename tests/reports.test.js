@@ -66,3 +66,28 @@ test("reports and CSV include additional-clock time", () => {
   assert.equal(report.total.extra, 5400000);
   assert.match(reportCsv(report), /0.0000,0.0000,1.5000,1.5000,0/);
 });
+test("reports aggregate multiple additional clocks", () => {
+  const state = {
+    ...emptyState(),
+    extraClocks: [
+      { id: "extra-one", name: "One", countsAsWork: true },
+      { id: "extra-two", name: "Two", countsAsWork: true },
+    ],
+  };
+  state.sessions.push(
+    {
+      id: "one",
+      role: "extra-one",
+      start: new Date(2026, 8, 9, 9).getTime(),
+      end: new Date(2026, 8, 9, 10).getTime(),
+    },
+    {
+      id: "two",
+      role: "extra-two",
+      start: new Date(2026, 8, 9, 10).getTime(),
+      end: new Date(2026, 8, 9, 12).getTime(),
+    },
+  );
+  const report = createReport(state, "day", "2026-09-09", Date.now());
+  assert.equal(report.total.extra, 3 * 3600000);
+});

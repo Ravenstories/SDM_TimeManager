@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f7f8f5" />
     <meta
       name="description"
-      content="A quiet, two-role work timer for VD and SIT."
+      content="A quiet, flexible work timer for SDM responsibilities."
     />
     <title>SDM Time Manager</title>
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
@@ -20,13 +20,6 @@
         <span class="brand-light">Time Manager</span></a
       >
       <div class="header-actions">
-        <label class="display-mode"
-          >Time
-          <select id="time-format" aria-label="Time display format">
-            <option value="clock">Hours : minutes : seconds</option>
-            <option value="decimal">Decimal hours</option>
-          </select>
-        </label>
         <button id="open-reports" class="quiet">Reports</button>
         <button id="compact" class="quiet">Compact view</button
         ><button id="data" class="quiet">Data & help</button>
@@ -36,8 +29,8 @@
       <section class="intro">
         <div>
           <p class="eyebrow" id="today-label">YOUR WORKDAY</p>
-          <h1>Make time for both.</h1>
-          <p class="subtitle">Two responsibilities. One thing at a time.</p>
+          <h1>Make time for what matters.</h1>
+          <p class="subtitle">Many responsibilities. One thing at a time.</p>
         </div>
         <span id="work-status" class="status">Ready when you are</span>
       </section>
@@ -53,7 +46,8 @@
               ><span class="role-description">SDM</span></span
             ><span class="badge" id="vd-badge">Ready</span></span
           ><span class="time" id="vd-time">00:00:00</span
-          ><span class="time-caption">tracked today</span
+          ><span class="time-caption"
+            ><strong id="vd-decimal">0.00 h</strong> · tracked today</span
           ><span class="card-bottom"
             ><span id="vd-action"
               >Start VD <span aria-hidden="true">↗</span></span
@@ -67,39 +61,30 @@
               ><span class="role-description">SDM / Servicedesk</span></span
             ><span class="badge" id="sit-badge">Ready</span></span
           ><span class="time" id="sit-time">00:00:00</span
-          ><span class="time-caption">tracked today</span
+          ><span class="time-caption"
+            ><strong id="sit-decimal">0.00 h</strong> · tracked today</span
           ><span class="card-bottom"
             ><span id="sit-action"
               >Start SIT <span aria-hidden="true">↗</span></span
             ><kbd>2</kbd></span
           >
         </button>
-        <button class="clock extra" id="extra" aria-pressed="false" hidden>
-          <span class="card-heading"
-            ><span
-              ><span class="role-title"
-                ><i></i><span id="extra-title">Other</span></span
-              ><span class="role-description" id="extra-description"
-                >Additional clock</span
-              ></span
-            ><span class="badge" id="extra-badge">Ready</span></span
-          ><span class="time" id="extra-time">00:00:00</span
-          ><span class="time-caption">tracked today</span
-          ><span class="card-bottom"
-            ><span id="extra-action"
-              >Start <span aria-hidden="true">↗</span></span
-            ></span
-          >
-        </button>
       </section>
       <div class="timer-controls">
         <button id="pause" class="primary" disabled>Ⅱ Pause tracking</button
+        ><button id="adjust-start" class="quiet" hidden>
+          Adjust start time
+        </button
+        ><button id="schedule-switch" class="quiet" hidden>
+          Auto-switch
+        </button
         ><span id="session-status">Select a responsibility to begin.</span
         ><button id="configure-clock" class="quiet">＋ Add clock</button>
       </div>
       <section class="split" aria-label="Today's time split">
         <div class="split-labels">
-          <span>Today's balance</span><strong id="total">0h 00m total</strong>
+          <span>Today's balance</span
+          ><strong id="total">0h 00m · 0.00 h total</strong>
         </div>
         <div class="split-track">
           <div id="vd-bar"></div>
@@ -141,9 +126,6 @@
               <select id="note-role">
                 <option value="vd">VD · SDM</option>
                 <option value="sit">SIT · Servicedesk</option>
-                <option value="extra" id="note-extra-role" hidden>
-                  Additional clock
-                </option>
               </select></label
             ><button type="submit" class="primary">
               Add note <span aria-hidden="true">↗</span>
@@ -161,7 +143,7 @@
       </section>
       <footer>
         <span><i class="dot vd-dot"></i> Saved on this device</span
-        ><span>1 / 2 to switch · Space to pause</span>
+        ><span>1–9 to switch · Space to pause</span>
       </footer>
     </main>
     <div id="announcement" class="sr-only" role="status"></div>
@@ -293,11 +275,15 @@
         Keyboard shortcuts work while this app has focus, outside text fields.
         They are not global desktop shortcuts.
       </p>
-      <h3>Additional clock</h3>
+      <h3>Additional clocks</h3>
       <p>
-        Add a temporary clock for ad hoc work, meetings, or breaks. Removing it
-        keeps its history.
+        Add as many clocks as you need for ad hoc work, meetings, or breaks.
+        They appear three per row on larger screens. Removing one keeps its
+        history.
       </p>
+      <p id="extra-clock-count" class="hint">0 additional clocks</p>
+      <div id="extra-clock-list" class="extra-clock-list"></div>
+      <h4>Add another clock</h4>
       <div class="extra-clock-settings">
         <label
           >Name
@@ -311,8 +297,7 @@
           work total</label
         >
         <div class="data-actions">
-          <button id="save-extra-clock">Save clock</button>
-          <button id="remove-extra-clock" hidden>Remove clock</button>
+          <button id="save-extra-clock">Add clock</button>
         </div>
       </div>
     </dialog>
@@ -336,9 +321,6 @@
             <select id="time-entry-role">
               <option value="vd">VD · SDM</option>
               <option value="sit">SIT · Servicedesk</option>
-              <option value="extra" id="time-entry-extra" hidden>
-                Additional clock
-              </option>
             </select>
           </label>
           <label
@@ -362,6 +344,85 @@
       <p class="hint">
         Entries cannot overlap. A recovery point is created automatically
         before your first change today.
+      </p>
+    </dialog>
+    <dialog id="active-start-editor" aria-labelledby="active-start-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">CURRENT TIMER</p>
+          <h2 id="active-start-title">Adjust start time</h2>
+        </div>
+        <button id="close-active-start" aria-label="Close start-time editor">
+          ✕
+        </button>
+      </div>
+      <p>
+        <strong id="active-start-role"></strong> keeps running while you
+        correct when the current session began.
+      </p>
+      <form id="active-start-form">
+        <label
+          >Started at
+          <input id="active-start-time" type="datetime-local" required
+        /></label>
+        <p id="active-start-error" class="form-error" role="alert" hidden></p>
+        <div class="editor-actions">
+          <button type="button" id="cancel-active-start">Cancel</button>
+          <button type="submit" class="primary">Save start time</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog
+      id="scheduled-switch-editor"
+      aria-labelledby="scheduled-switch-title"
+    >
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">TIMED HANDOFF</p>
+          <h2 id="scheduled-switch-title">Automatic switch</h2>
+        </div>
+        <button id="close-scheduled-switch" aria-label="Close auto-switch">
+          ✕
+        </button>
+      </div>
+      <p>
+        Keep the current timer running for a set duration, then automatically
+        continue on another timer.
+      </p>
+      <form id="scheduled-switch-form">
+        <div class="entry-fields switch-fields">
+          <label
+            >Switch in
+            <span class="number-field"
+              ><input
+                id="scheduled-switch-minutes"
+                type="number"
+                min="1"
+                step="1"
+                value="30"
+                required
+              />
+              minutes</span
+            ></label
+          >
+          <label
+            >Then track
+            <select id="scheduled-switch-target" required></select>
+          </label>
+        </div>
+        <p id="scheduled-switch-error" class="form-error" role="alert" hidden></p>
+        <div class="editor-actions">
+          <button type="button" id="cancel-scheduled-switch" hidden>
+            Remove auto-switch
+          </button>
+          <button type="button" id="cancel-scheduled-switch-dialog">
+            Cancel
+          </button>
+          <button type="submit" class="primary">Schedule switch</button>
+        </div>
+      </form>
+      <p class="hint">
+        A manual pause or role change cancels the automatic switch.
       </p>
     </dialog>
     <script type="module" src="./src/app.js"></script>
