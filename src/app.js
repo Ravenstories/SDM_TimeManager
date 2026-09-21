@@ -1,6 +1,7 @@
 import {
   duration,
   getExtraClocks,
+  getAvailableClocks,
   localDate,
   totals,
   switchRole,
@@ -123,7 +124,7 @@ function tick() {
     $(role + "-percent").textContent =
       `${balanceTotal ? Math.round((t[role] / balanceTotal) * 100) : 0}%`;
   }
-  for (const clock of getExtraClocks(state)) {
+  for (const clock of getAvailableClocks(state)) {
     const active = state.active?.role === clock.id;
     $(clock.id).setAttribute("aria-pressed", String(active));
     $(clockPartId(clock.id, "time")).textContent = formatTime(t[clock.id]);
@@ -288,7 +289,7 @@ function syncExtraOptions(select, extraClocks) {
     : "vd";
 }
 function render() {
-  const extraClocks = getExtraClocks(state);
+  const extraClocks = getAvailableClocks(state);
   renderClockCards(extraClocks);
   syncExtraOptions($("note-role"), extraClocks);
   syncExtraOptions($("time-entry-role"), extraClocks);
@@ -352,7 +353,7 @@ document.addEventListener("keydown", (e) => {
   const shortcutRoles = [
     "vd",
     "sit",
-    ...getExtraClocks(state).map((clock) => clock.id),
+    ...getAvailableClocks(state).map((clock) => clock.id),
   ];
   const shortcutIndex = Number(e.key) - 1;
   if (shortcutIndex >= 0 && shortcutIndex < shortcutRoles.length) {
@@ -428,7 +429,7 @@ function renderSwitchTargets() {
   const roles = [
     { id: "vd", name: "VD" },
     { id: "sit", name: "SIT" },
-    ...getExtraClocks(state),
+    ...getAvailableClocks(state),
   ];
   for (const role of roles.filter((item) => item.id !== state.active?.role)) {
     const option = document.createElement("option");
@@ -601,7 +602,11 @@ function renderExtraClockSettings() {
     const row = document.createElement("div");
     row.className = "extra-clock-row";
     const nameLabel = document.createElement("label");
-    nameLabel.textContent = "Name";
+    nameLabel.textContent = clock.archived
+      ? "Name (archived)"
+      : clock.classification === "unresolved"
+        ? "Name (unclassified)"
+        : "Name";
     const name = document.createElement("input");
     name.value = clock.name;
     name.maxLength = 40;

@@ -1,7 +1,9 @@
-import { validateState, switchRole } from "./domain.js";
+import { switchRole } from "./domain.js";
+
+import { migrateStoredState } from "./migration.js";
 
 export function restoreBackup(backup, now, id) {
-  const state = validateState(backup.state);
+  const state = migrateStoredState(backup.state);
   if (
     !Number.isFinite(backup.exportedAt) ||
     backup.exportedAt < 0 ||
