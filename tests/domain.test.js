@@ -12,6 +12,8 @@ import {
   removeSession,
   decimalHours,
   adjustActiveStart,
+  applyScheduledSwitch,
+  scheduleSwitch,
 } from "../src/domain.js";
 test("exports the decimal-hour formatter used by the time header", () => {
   assert.equal(typeof decimalHours, "function");
@@ -103,6 +105,37 @@ test("active timer start cannot overlap history or be in the future", () => {
   assert.throws(() => adjustActiveStart(state, 200, 400), /overlaps/);
   assert.throws(() => adjustActiveStart(state, 500, 400), /future/);
   assert.throws(() => adjustActiveStart(emptyState(), 100, 400), /No timer/);
+});
+test("scheduled switch closes the current session at the deadline", () => {
+  let state = switchRole(emptyState(), "vd", 100, "start");
+  state = scheduleSwitch(state, "sit", 400, 200);
+  assert.equal(applyScheduledSwitch(state, 399, "switch"), state);
+  state = applyScheduledSwitch(state, 800, "switch");
+  assert.deepEqual(state.active, { role: "sit", start: 400 });
+  assert.deepEqual(state.sessions[0], {
+    role: "vd",
+    start: 100,
+    end: 400,
+    id: "switch",
+  });
+  assert.equal(state.scheduledSwitch, null);
+});
+test("manual pause or role change cancels a scheduled switch", () => {
+  let state = switchRole(emptyState(), "vd", 100, "start");
+  state = scheduleSwitch(state, "sit", 400, 200);
+  assert.equal(switchRole(state, "sit", 300, "manual").scheduledSwitch, null);
+  let pausedState = switchRole(emptyState(), "vd", 100, "start");
+  pausedState = scheduleSwitch(pausedState, "sit", 400, 200);
+  assert.equal(
+    switchRole(pausedState, null, 300, "pause").scheduledSwitch,
+    null,
+  );
+});
+test("scheduled switches require a future deadline and another timer", () => {
+  const state = switchRole(emptyState(), "vd", 100, "start");
+  assert.throws(() => scheduleSwitch(state, "vd", 400, 200), /different/);
+  assert.throws(() => scheduleSwitch(state, "sit", 200, 200), /greater/);
+  assert.throws(() => scheduleSwitch(emptyState(), "sit", 400, 200), /Start/);
 });
 test("midnight splits an active session into local days", () => {
   const start = new Date(2026, 8, 9, 23, 30).getTime(),

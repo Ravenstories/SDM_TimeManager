@@ -20,13 +20,6 @@
         <span class="brand-light">Time Manager</span></a
       >
       <div class="header-actions">
-        <label class="display-mode"
-          >Time
-          <select id="time-format" aria-label="Time display format">
-            <option value="clock">Hours : minutes : seconds</option>
-            <option value="decimal">Decimal hours</option>
-          </select>
-        </label>
         <button id="open-reports" class="quiet">Reports</button>
         <button id="compact" class="quiet">Compact view</button
         ><button id="data" class="quiet">Data & help</button>
@@ -53,7 +46,8 @@
               ><span class="role-description">SDM</span></span
             ><span class="badge" id="vd-badge">Ready</span></span
           ><span class="time" id="vd-time">00:00:00</span
-          ><span class="time-caption">tracked today</span
+          ><span class="time-caption"
+            ><strong id="vd-decimal">0.00 h</strong> · tracked today</span
           ><span class="card-bottom"
             ><span id="vd-action"
               >Start VD <span aria-hidden="true">↗</span></span
@@ -67,7 +61,8 @@
               ><span class="role-description">SDM / Servicedesk</span></span
             ><span class="badge" id="sit-badge">Ready</span></span
           ><span class="time" id="sit-time">00:00:00</span
-          ><span class="time-caption">tracked today</span
+          ><span class="time-caption"
+            ><strong id="sit-decimal">0.00 h</strong> · tracked today</span
           ><span class="card-bottom"
             ><span id="sit-action"
               >Start SIT <span aria-hidden="true">↗</span></span
@@ -80,12 +75,16 @@
         ><button id="adjust-start" class="quiet" hidden>
           Adjust start time
         </button
+        ><button id="schedule-switch" class="quiet" hidden>
+          Auto-switch
+        </button
         ><span id="session-status">Select a responsibility to begin.</span
         ><button id="configure-clock" class="quiet">＋ Add clock</button>
       </div>
       <section class="split" aria-label="Today's time split">
         <div class="split-labels">
-          <span>Today's balance</span><strong id="total">0h 00m total</strong>
+          <span>Today's balance</span
+          ><strong id="total">0h 00m · 0.00 h total</strong>
         </div>
         <div class="split-track">
           <div id="vd-bar"></div>
@@ -372,6 +371,59 @@
           <button type="submit" class="primary">Save start time</button>
         </div>
       </form>
+    </dialog>
+    <dialog
+      id="scheduled-switch-editor"
+      aria-labelledby="scheduled-switch-title"
+    >
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">TIMED HANDOFF</p>
+          <h2 id="scheduled-switch-title">Automatic switch</h2>
+        </div>
+        <button id="close-scheduled-switch" aria-label="Close auto-switch">
+          ✕
+        </button>
+      </div>
+      <p>
+        Keep the current timer running for a set duration, then automatically
+        continue on another timer.
+      </p>
+      <form id="scheduled-switch-form">
+        <div class="entry-fields switch-fields">
+          <label
+            >Switch in
+            <span class="number-field"
+              ><input
+                id="scheduled-switch-minutes"
+                type="number"
+                min="1"
+                step="1"
+                value="30"
+                required
+              />
+              minutes</span
+            ></label
+          >
+          <label
+            >Then track
+            <select id="scheduled-switch-target" required></select>
+          </label>
+        </div>
+        <p id="scheduled-switch-error" class="form-error" role="alert" hidden></p>
+        <div class="editor-actions">
+          <button type="button" id="cancel-scheduled-switch" hidden>
+            Remove auto-switch
+          </button>
+          <button type="button" id="cancel-scheduled-switch-dialog">
+            Cancel
+          </button>
+          <button type="submit" class="primary">Schedule switch</button>
+        </div>
+      </form>
+      <p class="hint">
+        A manual pause or role change cancels the automatic switch.
+      </p>
     </dialog>
     <script type="module" src="./src/app.js"></script>
   </body>

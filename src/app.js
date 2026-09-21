@@ -7,6 +7,8 @@ import {
   saveSession,
   removeSession,
   adjustActiveStart,
+  applyScheduledSwitch,
+  scheduleSwitch,
   dayBounds,
   decimalHours,
 } from "./domain.js";
@@ -18,7 +20,8 @@ const $ = (id) => document.getElementById(id);
 let repository,
   state,
   selectedDay = localDate(),
-  lastToday = localDate();
+  lastToday = localDate(),
+  transitionInProgress = false;
 const reports = setupReports({
   getState: () => state,
   download,
@@ -35,9 +38,7 @@ const reports = setupReports({
 const announce = (message) => {
   $("announcement").textContent = message;
 };
-let timeFormat = localStorage.getItem(KEY + ".time-format") || "clock";
-const formatTime = (milliseconds) =>
-  timeFormat === "decimal" ? decimalHours(milliseconds) : duration(milliseconds);
+const formatTime = duration;
 const roleName = (role) =>
   getExtraClocks(state).find((clock) => clock.id === role)?.name ||
   (role.startsWith("extra") ? "Additional" : role.toUpperCase());
@@ -82,6 +83,22 @@ function tick() {
   if (!state) return;
   const now = Date.now(),
     today = localDate(now);
+  if (
+    state.scheduledSwitch &&
+    now >= state.scheduledSwitch.at &&
+    !transitionInProgress
+  ) {
+    const targetName = roleName(state.scheduledSwitch.toRole);
+    transitionInProgress = true;
+    change(
+      (current) =>
+        applyScheduledSwitch(current, now, crypto.randomUUID()),
+      `Automatically switched to ${targetName}`,
+    ).finally(() => {
+      transitionInProgress = false;
+    });
+    return;
+  }
   if (today !== lastToday) {
     if (selectedDay === lastToday) {
       selectedDay = today;
@@ -97,6 +114,7 @@ function tick() {
     const active = state.active?.role === role;
     $(role).setAttribute("aria-pressed", String(active));
     $(role + "-time").textContent = formatTime(t[role]);
+    $(role + "-decimal").textContent = decimalHours(t[role]);
     $(role + "-badge").textContent = active ? "● Tracking" : "Ready";
     $(role + "-action").textContent = active
       ? "Currently tracking"
@@ -109,6 +127,7 @@ function tick() {
     const active = state.active?.role === clock.id;
     $(clock.id).setAttribute("aria-pressed", String(active));
     $(clockPartId(clock.id, "time")).textContent = formatTime(t[clock.id]);
+    $(clockPartId(clock.id, "decimal")).textContent = decimalHours(t[clock.id]);
     $(clockPartId(clock.id, "badge")).textContent = active
       ? "● Tracking"
       : "Ready";
@@ -117,16 +136,21 @@ function tick() {
       : `${state.active ? "Switch to" : "Start"} ${clock.name} ↗`;
   }
   $("total").textContent =
-    timeFormat === "decimal"
-      ? `${decimalHours(total)} total`
-      : `${Math.floor(total / 3600000)}h ${String(Math.floor(total / 60000) % 60).padStart(2, "0")}m total`;
+    `${Math.floor(total / 3600000)}h ${String(Math.floor(total / 60000) % 60).padStart(2, "0")}m · ${decimalHours(total)} total`;
   $("pause").disabled = !state.active;
   $("adjust-start").hidden = !state.active;
+  $("schedule-switch").hidden = !state.active;
+  $("schedule-switch").textContent = state.scheduledSwitch
+    ? "Change auto-switch"
+    : "Auto-switch";
   $("work-status").textContent = state.active
     ? `${roleName(state.active.role)} is on the clock`
     : "Paused · Take your time";
+  const switchStatus = state.scheduledSwitch
+    ? ` · switches to ${roleName(state.scheduledSwitch.toRole)} in ${duration(state.scheduledSwitch.at - now)}`
+    : " · continues in background";
   $("session-status").textContent = state.active
-    ? `Current session ${formatTime(now - state.active.start)} · continues in background`
+    ? `Current session ${formatTime(now - state.active.start)}${switchStatus}`
     : "Select a responsibility to begin.";
   $("today-label").textContent = new Date(now)
     .toLocaleDateString(undefined, {
@@ -239,7 +263,7 @@ function renderClockCards(extraClocks) {
     button.className = "clock extra";
     button.id = clock.id;
     button.setAttribute("aria-pressed", "false");
-    button.innerHTML = `<span class="card-heading"><span><span class="role-title"><i></i><span data-clock-title></span></span><span class="role-description" data-clock-description></span></span><span class="badge" id="${clockPartId(clock.id, "badge")}">Ready</span></span><span class="time" id="${clockPartId(clock.id, "time")}">00:00:00</span><span class="time-caption">tracked today</span><span class="card-bottom"><span id="${clockPartId(clock.id, "action")}">Start <span aria-hidden="true">↗</span></span>${shortcut <= 9 ? `<kbd>${shortcut}</kbd>` : ""}</span>`;
+    button.innerHTML = `<span class="card-heading"><span><span class="role-title"><i></i><span data-clock-title></span></span><span class="role-description" data-clock-description></span></span><span class="badge" id="${clockPartId(clock.id, "badge")}">Ready</span></span><span class="time" id="${clockPartId(clock.id, "time")}">00:00:00</span><span class="time-caption"><strong id="${clockPartId(clock.id, "decimal")}">0.00 h</strong> · tracked today</span><span class="card-bottom"><span id="${clockPartId(clock.id, "action")}">Start <span aria-hidden="true">↗</span></span>${shortcut <= 9 ? `<kbd>${shortcut}</kbd>` : ""}</span>`;
     button.querySelector("[data-clock-title]").textContent = clock.name;
     button.querySelector("[data-clock-description]").textContent =
       clock.countsAsWork ? "Additional work" : "Excluded from work total";
@@ -319,6 +343,8 @@ document.addEventListener("keydown", (e) => {
     $("settings").open ||
     $("reports").open ||
     $("time-editor").open ||
+    $("active-start-editor").open ||
+    $("scheduled-switch-editor").open ||
     /INPUT|TEXTAREA|SELECT|BUTTON/.test(e.target.tagName) ||
     e.target.isContentEditable
   )
@@ -369,13 +395,6 @@ $("note").oninput = () => {
   }
   $("note-count").textContent = `${$("note").value.length} / 5000`;
 };
-$("time-format").value = timeFormat;
-$("time-format").onchange = () => {
-  timeFormat = $("time-format").value;
-  localStorage.setItem(KEY + ".time-format", timeFormat);
-  render();
-};
-
 const localInputValue = (timestamp) => {
   const date = new Date(
     timestamp - new Date(timestamp).getTimezoneOffset() * 60000,
@@ -400,6 +419,74 @@ $("active-start-form").onsubmit = async (event) => {
   } catch (error) {
     $("active-start-error").textContent = error.message;
     $("active-start-error").hidden = false;
+  }
+};
+function renderSwitchTargets() {
+  const select = $("scheduled-switch-target");
+  const previous = state.scheduledSwitch?.toRole;
+  select.replaceChildren();
+  const roles = [
+    { id: "vd", name: "VD" },
+    { id: "sit", name: "SIT" },
+    ...getExtraClocks(state),
+  ];
+  for (const role of roles.filter((item) => item.id !== state.active?.role)) {
+    const option = document.createElement("option");
+    option.value = role.id;
+    option.textContent = role.name;
+    select.append(option);
+  }
+  if (previous && [...select.options].some((option) => option.value === previous))
+    select.value = previous;
+}
+$("schedule-switch").onclick = () => {
+  if (!state.active) return;
+  renderSwitchTargets();
+  const remaining = state.scheduledSwitch
+    ? Math.max(1, Math.ceil((state.scheduledSwitch.at - Date.now()) / 60000))
+    : 30;
+  $("scheduled-switch-minutes").value = remaining;
+  $("cancel-scheduled-switch").hidden = !state.scheduledSwitch;
+  $("scheduled-switch-error").hidden = true;
+  $("scheduled-switch-editor").showModal();
+  $("scheduled-switch-minutes").focus();
+};
+$("close-scheduled-switch").onclick = () =>
+  $("scheduled-switch-editor").close();
+$("cancel-scheduled-switch-dialog").onclick = () =>
+  $("scheduled-switch-editor").close();
+$("cancel-scheduled-switch").onclick = async () => {
+  if (
+    await change(
+      (current) => ({ ...current, scheduledSwitch: null }),
+      "Automatic switch cancelled",
+    )
+  )
+    $("scheduled-switch-editor").close();
+};
+$("scheduled-switch-form").onsubmit = async (event) => {
+  event.preventDefault();
+  const minutes = Number($("scheduled-switch-minutes").value);
+  const now = Date.now();
+  const at = now + minutes * 60000;
+  try {
+    scheduleSwitch(state, $("scheduled-switch-target").value, at, now);
+    if (
+      await change(
+        (current) =>
+          scheduleSwitch(
+            current,
+            $("scheduled-switch-target").value,
+            at,
+            now,
+          ),
+        "Automatic switch scheduled",
+      )
+    )
+      $("scheduled-switch-editor").close();
+  } catch (error) {
+    $("scheduled-switch-error").textContent = error.message;
+    $("scheduled-switch-error").hidden = false;
   }
 };
 function resetTimeEntryForm() {
@@ -568,6 +655,14 @@ function renderExtraClockSettings() {
             extraClocks: getExtraClocks(paused).filter(
               (item) => item.id !== clock.id,
             ),
+            scheduledSwitch:
+              paused.scheduledSwitch &&
+              [
+                paused.scheduledSwitch.fromRole,
+                paused.scheduledSwitch.toRole,
+              ].includes(clock.id)
+                ? null
+                : paused.scheduledSwitch,
           };
         },
         `${clock.name} removed`,

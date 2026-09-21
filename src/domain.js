@@ -5,6 +5,7 @@ export const isRole = (role) => CORE_ROLES.includes(role) || isExtraRole(role);
 export const emptyState = () => ({
   version: 1,
   active: null,
+  scheduledSwitch: null,
   extraClocks: [],
   sessions: [],
   notes: [],
@@ -44,6 +45,14 @@ export function validateState(state) {
       (!state.active ||
         !role(state.active.role) ||
         !time(state.active.start))) ||
+    (state.scheduledSwitch !== undefined &&
+      state.scheduledSwitch !== null &&
+      (!state.scheduledSwitch ||
+        !role(state.scheduledSwitch.fromRole) ||
+        !role(state.scheduledSwitch.toRole) ||
+        state.active?.role !== state.scheduledSwitch.fromRole ||
+        state.scheduledSwitch.fromRole === state.scheduledSwitch.toRole ||
+        !time(state.scheduledSwitch.at))) ||
     !state.sessions.every(
       (s) =>
         s &&
@@ -82,6 +91,7 @@ export function switchRole(state, role, now, id) {
       id,
     });
   next.active = role ? { role, start: now } : null;
+  next.scheduledSwitch = null;
   return next;
 }
 export function saveSession(state, session) {
@@ -134,6 +144,32 @@ export function adjustActiveStart(state, start, now) {
   )
     throw new Error("The adjusted start overlaps another tracked session.");
   return { ...state, active: { ...state.active, start } };
+}
+export function scheduleSwitch(state, toRole, at, now) {
+  if (!state.active) throw new Error("Start a timer before scheduling a switch.");
+  const available = [
+    ...CORE_ROLES,
+    ...getExtraClocks(state).map((clock) => clock.id),
+  ];
+  if (!available.includes(toRole) || toRole === state.active.role)
+    throw new Error("Choose a different available timer.");
+  if (!Number.isFinite(at) || at <= now)
+    throw new Error("Choose a duration greater than zero.");
+  return {
+    ...state,
+    scheduledSwitch: { fromRole: state.active.role, toRole, at },
+  };
+}
+export function applyScheduledSwitch(state, now, id) {
+  const plan = state.scheduledSwitch;
+  if (!plan || now < plan.at) return state;
+  const targetAvailable =
+    CORE_ROLES.includes(plan.toRole) ||
+    getExtraClocks(state).some((clock) => clock.id === plan.toRole);
+  if (state.active?.role !== plan.fromRole || !targetAvailable)
+    return { ...state, scheduledSwitch: null };
+  const switched = switchRole(state, plan.toRole, plan.at, id);
+  return { ...switched, scheduledSwitch: null };
 }
 export function dayBounds(date) {
   const start = new Date(`${date}T00:00:00`);

@@ -1,10 +1,5 @@
 import { createReport, reportCsv } from "./reports.js";
-import {
-  duration,
-  decimalHours,
-  getExtraClocks,
-  localDate,
-} from "./domain.js";
+import { duration, getExtraClocks, localDate } from "./domain.js";
 
 export function setupReports({ getState, download, showDay }) {
   const $ = (id) => document.getElementById(id);
@@ -21,7 +16,7 @@ export function setupReports({ getState, download, showDay }) {
       Date.now(),
     );
     const total = report.total.vd + report.total.sit + report.total.extra;
-    const format = $("time-format").value === "decimal" ? decimalHours : duration;
+    const format = duration;
     $("report-vd").textContent = format(report.total.vd);
     $("report-sit").textContent = format(report.total.sit);
     $("report-extra").textContent = format(report.total.extra);
