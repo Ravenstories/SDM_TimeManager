@@ -77,6 +77,9 @@
       </section>
       <div class="timer-controls">
         <button id="pause" class="primary" disabled>Ⅱ Pause tracking</button
+        ><button id="adjust-start" class="quiet" hidden>
+          Adjust start time
+        </button
         ><span id="session-status">Select a responsibility to begin.</span
         ><button id="configure-clock" class="quiet">＋ Add clock</button>
       </div>
@@ -343,6 +346,32 @@
         Entries cannot overlap. A recovery point is created automatically
         before your first change today.
       </p>
+    </dialog>
+    <dialog id="active-start-editor" aria-labelledby="active-start-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">CURRENT TIMER</p>
+          <h2 id="active-start-title">Adjust start time</h2>
+        </div>
+        <button id="close-active-start" aria-label="Close start-time editor">
+          ✕
+        </button>
+      </div>
+      <p>
+        <strong id="active-start-role"></strong> keeps running while you
+        correct when the current session began.
+      </p>
+      <form id="active-start-form">
+        <label
+          >Started at
+          <input id="active-start-time" type="datetime-local" required
+        /></label>
+        <p id="active-start-error" class="form-error" role="alert" hidden></p>
+        <div class="editor-actions">
+          <button type="button" id="cancel-active-start">Cancel</button>
+          <button type="submit" class="primary">Save start time</button>
+        </div>
+      </form>
     </dialog>
     <script type="module" src="./src/app.js"></script>
   </body>

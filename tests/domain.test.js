@@ -11,6 +11,7 @@ import {
   saveSession,
   removeSession,
   decimalHours,
+  adjustActiveStart,
 } from "../src/domain.js";
 test("exports the decimal-hour formatter used by the time header", () => {
   assert.equal(typeof decimalHours, "function");
@@ -81,6 +82,27 @@ test("sleep and reload use timestamps rather than ticks", () => {
 test("same role does not restart session", () => {
   const s = switchRole(emptyState(), "vd", 100, "a");
   assert.equal(switchRole(s, "vd", 200, "b"), s);
+});
+test("active timer start can be adjusted without stopping it", () => {
+  const now = new Date(2026, 8, 9, 9).getTime();
+  const state = switchRole(emptyState(), "vd", now, "a");
+  const adjusted = adjustActiveStart(state, now - 10 * 60000, now + 60000);
+  assert.deepEqual(adjusted.active, {
+    role: "vd",
+    start: now - 10 * 60000,
+  });
+  assert.equal(adjusted.sessions.length, 0);
+  assert.equal(totals(adjusted, localDate(now), now).vd, 10 * 60000);
+});
+test("active timer start cannot overlap history or be in the future", () => {
+  const state = {
+    ...emptyState(),
+    active: { role: "sit", start: 300 },
+    sessions: [{ id: "previous", role: "vd", start: 100, end: 250 }],
+  };
+  assert.throws(() => adjustActiveStart(state, 200, 400), /overlaps/);
+  assert.throws(() => adjustActiveStart(state, 500, 400), /future/);
+  assert.throws(() => adjustActiveStart(emptyState(), 100, 400), /No timer/);
 });
 test("midnight splits an active session into local days", () => {
   const start = new Date(2026, 8, 9, 23, 30).getTime(),

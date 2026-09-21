@@ -1,4 +1,4 @@
-const CACHE = "sdm-shell-v7";
+const CACHE = "sdm-shell-v8";
 const FILES = [
   "./",
   "./index.html",

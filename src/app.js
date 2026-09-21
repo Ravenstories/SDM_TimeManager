@@ -6,6 +6,7 @@ import {
   switchRole,
   saveSession,
   removeSession,
+  adjustActiveStart,
   dayBounds,
   decimalHours,
 } from "./domain.js";
@@ -120,6 +121,7 @@ function tick() {
       ? `${decimalHours(total)} total`
       : `${Math.floor(total / 3600000)}h ${String(Math.floor(total / 60000) % 60).padStart(2, "0")}m total`;
   $("pause").disabled = !state.active;
+  $("adjust-start").hidden = !state.active;
   $("work-status").textContent = state.active
     ? `${roleName(state.active.role)} is on the clock`
     : "Paused · Take your time";
@@ -299,6 +301,15 @@ $("today").onclick = () => {
 for (const role of ["vd", "sit"])
   $(role).onclick = () => activate(role);
 $("pause").onclick = () => activate(null);
+$("adjust-start").onclick = () => {
+  if (!state.active) return;
+  $("active-start-role").textContent = roleName(state.active.role);
+  $("active-start-time").value = localInputValue(state.active.start);
+  $("active-start-time").max = localInputValue(Date.now());
+  $("active-start-error").hidden = true;
+  $("active-start-editor").showModal();
+  $("active-start-time").focus();
+};
 document.addEventListener("keydown", (e) => {
   if (
     e.repeat ||
@@ -370,6 +381,26 @@ const localInputValue = (timestamp) => {
     timestamp - new Date(timestamp).getTimezoneOffset() * 60000,
   );
   return date.toISOString().slice(0, 16);
+};
+$("close-active-start").onclick = () => $("active-start-editor").close();
+$("cancel-active-start").onclick = () => $("active-start-editor").close();
+$("active-start-form").onsubmit = async (event) => {
+  event.preventDefault();
+  const start = new Date($("active-start-time").value).getTime();
+  const now = Date.now();
+  try {
+    adjustActiveStart(state, start, now);
+    if (
+      await change(
+        (current) => adjustActiveStart(current, start, now),
+        "Active start time updated",
+      )
+    )
+      $("active-start-editor").close();
+  } catch (error) {
+    $("active-start-error").textContent = error.message;
+    $("active-start-error").hidden = false;
+  }
 };
 function resetTimeEntryForm() {
   const [start] = dayBounds(selectedDay);

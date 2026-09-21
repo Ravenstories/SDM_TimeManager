@@ -123,6 +123,18 @@ export function removeSession(state, id) {
     sessions: state.sessions.filter((session) => session.id !== id),
   };
 }
+export function adjustActiveStart(state, start, now) {
+  if (!state.active) throw new Error("No timer is currently running.");
+  if (!Number.isFinite(start) || start < 0 || start > now)
+    throw new Error("Choose a valid start time that is not in the future.");
+  if (
+    state.sessions.some(
+      (session) => start < session.end && now > session.start,
+    )
+  )
+    throw new Error("The adjusted start overlaps another tracked session.");
+  return { ...state, active: { ...state.active, start } };
+}
 export function dayBounds(date) {
   const start = new Date(`${date}T00:00:00`);
   const end = new Date(start);
