@@ -564,6 +564,23 @@ select {
   justify-content: space-between;
   gap: 12px;
 }
+.app-update:not([hidden]) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+  border: 1px solid #c7d8ce;
+  border-radius: 10px;
+  background: #edf4ef;
+  font-size: 13px;
+}
+.app-update p {
+  margin: 5px 0 0;
+  line-height: 1.5;
+}
 .note-actions {
   display: flex;
 }

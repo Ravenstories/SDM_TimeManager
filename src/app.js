@@ -18,6 +18,8 @@ import { KEY } from "./storage.js";
 import { IndexedRepository } from "./indexed-repository.js";
 import { setupData } from "./data-view.js";
 import { setupReports } from "./report-view.js";
+import { setupUpdates } from "./updates.js";
+setupUpdates();
 const $ = (id) => document.getElementById(id);
 let repository,
   state,
@@ -769,5 +771,3 @@ document.addEventListener("visibilitychange", () => {
   if (!document.hidden) reloadState();
 });
 setInterval(tick, 1000);
-if ("serviceWorker" in navigator)
-  navigator.serviceWorker.register("./sw.js").catch(() => {});
