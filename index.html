@@ -386,13 +386,19 @@
         </button>
       </div>
       <p>
-        Keep the current timer running for a set duration, then automatically
-        continue on another timer.
+        Switch after a duration from now, or when the current timer reaches
+        a chosen total for today.
       </p>
       <form id="scheduled-switch-form">
+        <label class="switch-mode-label" for="scheduled-switch-mode">When to switch</label>
+        <select id="scheduled-switch-mode">
+          <option value="delay">After a duration from now</option>
+          <option value="total">When today's timer reaches a total</option>
+        </select>
+        <p id="scheduled-switch-help" class="hint"></p>
         <div class="entry-fields switch-fields">
           <label
-            >Switch in
+            ><span id="scheduled-switch-value-label">Switch in</span>
             <span class="number-field"
               ><input
                 id="scheduled-switch-minutes"
@@ -400,6 +406,7 @@
                 min="1"
                 step="1"
                 value="30"
+                aria-describedby="scheduled-switch-help"
                 required
               />
               minutes</span
