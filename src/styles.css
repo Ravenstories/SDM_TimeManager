@@ -567,10 +567,14 @@ select {
 .note-actions {
   display: flex;
 }
-.note-editing {
+.note-row.note-editing {
   display: block;
 }
 .note-editing textarea {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 8rem;
   border: 1px solid #d0d9cf;
   border-radius: 7px;
   padding: 10px;
@@ -728,6 +732,16 @@ dialog {
 }
 .switch-fields {
   grid-template-columns: 1fr 1fr;
+}
+.switch-mode-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+#scheduled-switch-mode {
+  width: 100%;
+  margin: 0;
+  border: 1px solid #d0d9cf;
 }
 .number-field {
   display: flex;

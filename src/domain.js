@@ -56,6 +56,13 @@ export function validateState(state) {
         !role(state.scheduledSwitch.toRole) ||
         state.active?.role !== state.scheduledSwitch.fromRole ||
         state.scheduledSwitch.fromRole === state.scheduledSwitch.toRole ||
+        (state.scheduledSwitch.mode !== undefined &&
+          !["delay", "total"].includes(state.scheduledSwitch.mode)) ||
+        (state.scheduledSwitch.mode === "total" &&
+          (!Number.isSafeInteger(state.scheduledSwitch.targetMs) ||
+            state.scheduledSwitch.targetMs <= 0 ||
+            !/^\d{4}-\d{2}-\d{2}$/.test(state.scheduledSwitch.date) ||
+            localDate(dayBounds(state.scheduledSwitch.date)[0]) !== state.scheduledSwitch.date)) ||
         !time(state.scheduledSwitch.at))) ||
     !state.sessions.every(
       (s) =>
@@ -124,18 +131,18 @@ export function saveSession(state, session) {
   )
     throw new Error("This entry overlaps another tracked session.");
 
-  return {
+  return refreshTotalSwitch({
     ...state,
     sessions: [...otherSessions, { ...session }].sort(
       (a, b) => a.start - b.start,
     ),
-  };
+  });
 }
 export function removeSession(state, id) {
-  return {
+  return refreshTotalSwitch({
     ...state,
     sessions: state.sessions.filter((session) => session.id !== id),
-  };
+  });
 }
 export function adjustActiveStart(state, start, now) {
   if (!state.active) throw new Error("No timer is currently running.");
@@ -147,7 +154,31 @@ export function adjustActiveStart(state, start, now) {
     )
   )
     throw new Error("The adjusted start overlaps another tracked session.");
-  return { ...state, active: { ...state.active, start } };
+  return refreshTotalSwitch({ ...state, active: { ...state.active, start } });
+}
+// Recalculate total-based deadlines after time corrections. Delay-based plans
+// retain their original wall-clock deadline.
+function refreshTotalSwitch(state) {
+  const plan = state.scheduledSwitch;
+  if (plan?.mode !== "total" || state.active?.role !== plan.fromRole) return state;
+  const [dayStart, dayEnd] = dayBounds(plan.date);
+  const completed = totals({ ...state, active: null }, plan.date, 0)[plan.fromRole] || 0;
+  const at = Math.max(dayStart, state.active.start) + Math.max(0, plan.targetMs - completed);
+  if (at > dayEnd)
+    throw new Error("This timer total cannot be reached before midnight. Choose a smaller total or use a duration from now.");
+  return { ...state, scheduledSwitch: { ...plan, at } };
+}
+export function scheduleSwitchAtTotal(state, toRole, targetMs, now) {
+  if (!state.active) throw new Error("Start a timer before scheduling a switch.");
+  const date = localDate(now);
+  const tracked = totals(state, date, now)[state.active.role];
+  if (!Number.isSafeInteger(targetMs) || targetMs <= tracked)
+    throw new Error("Choose a total greater than the time already tracked on this timer today.");
+  const next = scheduleSwitch(state, toRole, now + targetMs - tracked, now);
+  return refreshTotalSwitch({
+    ...next,
+    scheduledSwitch: { ...next.scheduledSwitch, mode: "total", targetMs, date },
+  });
 }
 export function scheduleSwitch(state, toRole, at, now) {
   if (!state.active) throw new Error("Start a timer before scheduling a switch.");

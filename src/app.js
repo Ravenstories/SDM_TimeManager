@@ -10,6 +10,7 @@ import {
   adjustActiveStart,
   applyScheduledSwitch,
   scheduleSwitch,
+  scheduleSwitchAtTotal,
   dayBounds,
   decimalHours,
 } from "./domain.js";
@@ -148,7 +149,7 @@ function tick() {
     ? `${roleName(state.active.role)} is on the clock`
     : "Paused · Take your time";
   const switchStatus = state.scheduledSwitch
-    ? ` · switches to ${roleName(state.scheduledSwitch.toRole)} in ${duration(state.scheduledSwitch.at - now)}`
+    ? ` · switches to ${roleName(state.scheduledSwitch.toRole)} in ${duration(state.scheduledSwitch.at - now)}${state.scheduledSwitch.mode === "total" ? ` · at ${duration(state.scheduledSwitch.targetMs)} tracked today` : ""}`
     : " · continues in background";
   $("session-status").textContent = state.active
     ? `Current session ${formatTime(now - state.active.start)}${switchStatus}`
@@ -226,6 +227,7 @@ function renderNotes() {
 function editNote(row, note) {
   const editor = document.createElement("textarea");
   editor.value = note.text;
+  editor.rows = 5;
   editor.maxLength = 5000;
   editor.setAttribute("aria-label", "Edit note text");
   const actions = document.createElement("div");
@@ -440,13 +442,27 @@ function renderSwitchTargets() {
   if (previous && [...select.options].some((option) => option.value === previous))
     select.value = previous;
 }
+function renderSwitchMode() {
+  if (!state.active) return;
+  const isTotal = $("scheduled-switch-mode").value === "total";
+  $("scheduled-switch-value-label").textContent = isTotal ? "Timer total" : "Switch in";
+  $("scheduled-switch-help").textContent = isTotal
+    ? `Today's total for ${roleName(state.active.role)} is ${duration(totals(state, localDate(), Date.now())[state.active.role])}. Includes earlier sessions today; 30 minutes means 00:30:00 on the timer.`
+    : "Minutes from when you save. For example, 30 means another 30 minutes from now.";
+  $("scheduled-switch-error").hidden = true;
+}
+$("scheduled-switch-mode").onchange = renderSwitchMode;
 $("schedule-switch").onclick = () => {
   if (!state.active) return;
   renderSwitchTargets();
   const remaining = state.scheduledSwitch
     ? Math.max(1, Math.ceil((state.scheduledSwitch.at - Date.now()) / 60000))
     : 30;
-  $("scheduled-switch-minutes").value = remaining;
+  $("scheduled-switch-mode").value = state.scheduledSwitch?.mode === "total" ? "total" : "delay";
+  $("scheduled-switch-minutes").value = state.scheduledSwitch?.mode === "total"
+    ? state.scheduledSwitch.targetMs / 60000
+    : remaining;
+  renderSwitchMode();
   $("cancel-scheduled-switch").hidden = !state.scheduledSwitch;
   $("scheduled-switch-error").hidden = true;
   $("scheduled-switch-editor").showModal();
@@ -468,19 +484,18 @@ $("cancel-scheduled-switch").onclick = async () => {
 $("scheduled-switch-form").onsubmit = async (event) => {
   event.preventDefault();
   const minutes = Number($("scheduled-switch-minutes").value);
+  const mode = $("scheduled-switch-mode").value;
+  const toRole = $("scheduled-switch-target").value;
   const now = Date.now();
   const at = now + minutes * 60000;
+  const createPlan = (current) => mode === "total"
+    ? scheduleSwitchAtTotal(current, toRole, minutes * 60000, now)
+    : scheduleSwitch(current, toRole, at, now);
   try {
-    scheduleSwitch(state, $("scheduled-switch-target").value, at, now);
+    createPlan(state);
     if (
       await change(
-        (current) =>
-          scheduleSwitch(
-            current,
-            $("scheduled-switch-target").value,
-            at,
-            now,
-          ),
+        createPlan,
         "Automatic switch scheduled",
       )
     )
