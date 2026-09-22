@@ -1,8 +1,10 @@
-const CACHE = "sdm-shell-v11";
+// The production build replaces this with a hash of all shipped files.
+const CACHE = "sdm-shell-dev-v12";
 const FILES = [
   "./",
   "./index.html",
   "./src/app.js",
+  "./src/updates.js",
   "./src/domain.js",
   "./src/migration.js",
   "./src/storage.js",
@@ -15,9 +17,17 @@ const FILES = [
   "./icon.svg",
   "./manifest.webmanifest",
 ];
-self.addEventListener("install", (event) =>
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(FILES))),
-);
+self.addEventListener("install", (event) => {
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    // Bypass HTTP caches too, so a new shell never contains stale assets.
+    await cache.addAll(FILES.map((file) =>
+      new Request(new URL(file, self.location.href), { cache: "reload" }),
+    ));
+    // Only replace the working version after the complete shell is available.
+    await self.skipWaiting();
+  })());
+});
 self.addEventListener("activate", (event) =>
   event.waitUntil(
     caches
@@ -28,7 +38,8 @@ self.addEventListener("activate", (event) =>
             .filter((k) => k.startsWith("sdm-shell-") && k !== CACHE)
             .map((k) => caches.delete(k)),
         ),
-      ),
+      )
+      .then(() => self.clients.claim()),
   ),
 );
 self.addEventListener("fetch", (event) => {
@@ -38,8 +49,8 @@ self.addEventListener("fetch", (event) => {
   )
     return;
   event.respondWith(
-    caches
-      .match(event.request)
+    caches.open(CACHE)
+      .then((cache) => cache.match(event.request))
       .then((cached) => cached || fetch(event.request)),
   );
 });
