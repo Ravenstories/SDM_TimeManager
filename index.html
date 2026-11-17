@@ -88,6 +88,49 @@
         ><span id="session-status">Select a responsibility to begin.</span
         ><button id="configure-clock" class="quiet">＋ Add clock</button>
       </div>
+      <section class="switch-adjustment" id="switch-adjustment" hidden>
+        <button
+          id="switch-toggle"
+          class="quiet switch-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="switch-editor"
+        >
+          <span>Adjust last switch</span>
+          <span id="switch-direction" class="switch-direction"></span>
+        </button>
+        <form class="switch-editor" id="switch-editor" hidden>
+          <div class="switch-editor-heading">
+            <label for="switch-slider">New switch time</label>
+            <output id="switch-time" for="switch-slider" aria-live="off"></output>
+          </div>
+          <p id="switch-hint">Drag the dot left to when you changed roles.</p>
+          <input
+            id="switch-slider"
+            type="range"
+            min="0"
+            step="1"
+            aria-describedby="switch-hint"
+          />
+          <div class="switch-endpoints" aria-hidden="true">
+            <span id="switch-start"></span>
+            <span id="switch-original"></span>
+          </div>
+          <p id="switch-transfer" class="switch-transfer"></p>
+          <p id="switch-error" class="switch-error" role="alert" hidden></p>
+          <div class="switch-editor-actions">
+            <div class="switch-nudges" role="group" aria-label="Adjust by one minute">
+              <button id="switch-earlier" type="button" aria-label="One minute earlier">−1 min</button>
+              <button id="switch-later" type="button" aria-label="One minute later">+1 min</button>
+            </div>
+            <div class="switch-save-actions">
+              <button id="switch-cancel" type="button" class="quiet">Cancel</button>
+              <button id="switch-save" type="submit" class="primary" disabled>Save adjustment</button>
+            </div>
+          </div>
+        </form>
+        <p id="switch-status" class="switch-status" role="status" hidden></p>
+      </section>
       <section class="split" aria-label="Today's time split">
         <div class="split-labels">
           <span>Today's balance</span

@@ -105,6 +105,64 @@ export function switchRole(state, role, now, id) {
   next.scheduledSwitch = null;
   return next;
 }
+export function latestSwitch(state) {
+  const { active, sessions } = state;
+  if (!CORE_ROLES.includes(active?.role)) return null;
+
+  const predecessors = sessions.filter(
+    (session) => session.end === active.start,
+  );
+  if (predecessors.length !== 1) return null;
+
+  const [previous] = predecessors;
+  if (
+    !CORE_ROLES.includes(previous.role) ||
+    previous.role === active.role ||
+    previous.start >= previous.end
+  )
+    return null;
+
+  const conflicting = sessions.some((session) => {
+    if (session === previous) return false;
+    const overlaps =
+      session.start < session.end &&
+      session.start < previous.end &&
+      previous.start < session.end;
+    return session.id === previous.id || overlaps;
+  });
+  if (conflicting) return null;
+
+  return {
+    sessionId: previous.id,
+    from: previous.role,
+    to: active.role,
+    start: previous.start,
+    at: active.start,
+  };
+}
+
+export function adjustSwitch(state, expected, at) {
+  const current = latestSwitch(state);
+  if (
+    !current ||
+    !expected ||
+    Object.keys(current).some((key) => current[key] !== expected[key])
+  )
+    throw new Error("The latest switch changed. Reopen it to try again.");
+
+  if (!Number.isFinite(at) || at < current.start || at > current.at)
+    throw new Error("Choose a time within the previous session.");
+  if (at === current.at) return state;
+
+  return refreshTotalSwitch({
+    ...state,
+    sessions: state.sessions.map((session) =>
+      session.id === current.sessionId ? { ...session, end: at } : session,
+    ),
+    active: { ...state.active, start: at },
+  });
+}
+
 export function saveSession(state, session) {
   if (
     !session ||

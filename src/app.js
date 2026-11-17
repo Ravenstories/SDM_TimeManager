@@ -8,6 +8,8 @@ import {
   saveSession,
   removeSession,
   adjustActiveStart,
+  adjustSwitch,
+  latestSwitch,
   applyScheduledSwitch,
   scheduleSwitch,
   scheduleSwitchAtTotal,
@@ -18,6 +20,7 @@ import { KEY } from "./storage.js";
 import { IndexedRepository } from "./indexed-repository.js";
 import { setupData } from "./data-view.js";
 import { setupReports } from "./report-view.js";
+import { setupSwitchAdjustment } from "./switch-view.js";
 import { setupUpdates } from "./updates.js";
 setupUpdates();
 const $ = (id) => document.getElementById(id);
@@ -26,6 +29,14 @@ let repository,
   selectedDay = localDate(),
   lastToday = localDate(),
   transitionInProgress = false;
+const switchAdjustment = setupSwitchAdjustment({
+  save: (expected, at) =>
+    change((s) => adjustSwitch(s, expected, at), "Switch time adjusted", {
+      onError: (error) => {
+        throw error;
+      },
+    }),
+});
 const reports = setupReports({
   getState: () => state,
   download,
@@ -59,7 +70,7 @@ function fail(error) {
   $("data-error").hidden = false;
   $("data-error").textContent = error.message;
 }
-async function change(fn, message, options) {
+async function change(fn, message, { onError = fail, ...options } = {}) {
   try {
     state = await repository.update(fn, options);
     $("error").hidden = true;
@@ -69,18 +80,23 @@ async function change(fn, message, options) {
     if (message) announce(message);
     return true;
   } catch (error) {
-    fail(error);
+    onError(error);
     return false;
   }
 }
 async function activate(role) {
+  const sessionId = crypto.randomUUID();
   if (
     await change(
-      (s) => switchRole(s, role, Date.now(), crypto.randomUUID()),
+      (s) => switchRole(s, role, Date.now(), sessionId),
       role ? `Tracking ${roleName(role)}` : "Tracking paused",
     )
   ) {
     if (role) $("note-role").value = role;
+    const switchPoint = latestSwitch(state);
+    if (switchPoint?.sessionId === sessionId) {
+      switchAdjustment.refresh(switchPoint, { reveal: true });
+    }
   }
 }
 function tick() {
@@ -304,6 +320,7 @@ function render() {
     ? `Manage clocks (${extraClocks.length})`
     : "＋ Add clock";
   tick();
+  switchAdjustment.refresh(latestSwitch(state));
   renderNotes();
   reports.refresh();
 }

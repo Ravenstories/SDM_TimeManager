@@ -11,6 +11,7 @@ const FILES = [
   "./src/indexed-repository.js",
   "./src/reports.js",
   "./src/report-view.js",
+  "./src/switch-view.js",
   "./src/backup.js",
   "./src/data-view.js",
   "./src/styles.css",
