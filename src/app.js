@@ -14,6 +14,7 @@ import {
   dayBounds,
   decimalHours,
 } from "./domain.js";
+import { clockColourChoice, clockColours, clockPalette } from "./clock-colours.js";
 import { dayTimeline, moveSwitch } from "./timeline.js";
 import { KEY } from "./storage.js";
 import { IndexedRepository } from "./indexed-repository.js";
@@ -27,10 +28,11 @@ let repository,
   state,
   selectedDay = localDate(),
   lastToday = localDate(),
-  timelineMinute,
+  timelineTick,
   transitionInProgress = false;
 const switchAdjustment = setupSwitchAdjustment({
   roleName: (role) => roleName(role),
+  roleColor: (role) => clockPalette(role, getExtraClocks(state)).rail,
   save: (expected, at) =>
     change((s) => moveSwitch(s, expected, at, Date.now()), "Switch time adjusted", {
       onError: (error) => {
@@ -99,8 +101,14 @@ async function activate(role) {
   }
 }
 function refreshTimeline(now = Date.now(), revealFromId) {
-  switchAdjustment.refresh(dayTimeline(state, selectedDay, now), { now, revealFromId });
-  timelineMinute = Math.floor(now / 60000);
+  const time = totals(state, selectedDay, now);
+  switchAdjustment.refresh(dayTimeline(state, selectedDay, now), {
+    now,
+    revealFromId,
+    isToday: selectedDay === localDate(now),
+    workTotal: time.vd + time.sit + extraTotal(time),
+  });
+  timelineTick = Math.floor(now / 5000);
 }
 function tick() {
   if (!state) return;
@@ -131,12 +139,10 @@ function tick() {
     }
     lastToday = today;
   }
-  if (state.active && selectedDay === today && timelineMinute !== Math.floor(now / 60000)) {
+  if (state.active && selectedDay === today && timelineTick !== Math.floor(now / 5000)) {
     refreshTimeline(now);
   }
-  const t = totals(state, today, now),
-    balanceTotal = t.vd + t.sit,
-    total = t.vd + t.sit + extraTotal(t);
+  const t = totals(state, today, now);
   for (const role of ["vd", "sit"]) {
     const active = state.active?.role === role;
     $(role).setAttribute("aria-pressed", String(active));
@@ -146,9 +152,6 @@ function tick() {
     $(role + "-action").textContent = active
       ? "Currently tracking"
       : `${state.active ? "Switch to" : "Start"} ${role.toUpperCase()} ↗`;
-    $(role + "-bar").style.width = `${balanceTotal ? (t[role] / balanceTotal) * 100 : 0}%`;
-    $(role + "-percent").textContent =
-      `${balanceTotal ? Math.round((t[role] / balanceTotal) * 100) : 0}%`;
   }
   for (const clock of getAvailableClocks(state)) {
     const active = state.active?.role === clock.id;
@@ -162,8 +165,6 @@ function tick() {
       ? "Currently tracking"
       : `${state.active ? "Switch to" : "Start"} ${clock.name} ↗`;
   }
-  $("total").textContent =
-    `${Math.floor(total / 3600000)}h ${String(Math.floor(total / 60000) % 60).padStart(2, "0")}m · ${decimalHours(total)} total`;
   $("pause").disabled = !state.active;
   $("adjust-start").hidden = !state.active;
   $("schedule-switch").hidden = !state.active;
@@ -189,16 +190,6 @@ function tick() {
   document.title = state.active
     ? `${formatTime(t[state.active.role])} · ${roleName(state.active.role)} — SDM`
     : "Paused — SDM Time Manager";
-  $("past-summary").hidden = selectedDay === today;
-  if (selectedDay !== today) {
-    const past = totals(state, selectedDay, now),
-      pastTotal = past.vd + past.sit + extraTotal(past),
-      extraSummary = getExtraClocks(state)
-        .map((clock) => ` · ${clock.name} ${formatTime(past[clock.id])}`)
-        .join("");
-    $("past-summary").textContent =
-      `VD ${formatTime(past.vd)} · SIT ${formatTime(past.sit)}${extraSummary} · Work total ${formatTime(pastTotal)}`;
-  }
 }
 function renderNotes() {
   $("notes").replaceChildren();
@@ -220,6 +211,11 @@ function renderNotes() {
     const tag = document.createElement("span");
     tag.className = `note-tag ${note.role.startsWith("extra") ? "extra" : note.role}`;
     tag.textContent = roleName(note.role);
+    if (tag.classList.contains("extra")) {
+      const palette = clockPalette(note.role, getExtraClocks(state));
+      tag.style.setProperty("--clock-active", palette.active);
+      tag.style.setProperty("--clock-ink", palette.ink);
+    }
     const time = document.createElement("time");
     time.dateTime = new Date(note.at).toISOString();
     time.textContent = new Date(note.at).toLocaleTimeString([], {
@@ -284,12 +280,17 @@ function editNote(row, note) {
   editor.focus();
 }
 function renderClockCards(extraClocks) {
+  const allClocks = getExtraClocks(state);
   document.querySelectorAll(".clock.extra").forEach((clock) => clock.remove());
   extraClocks.forEach((clock, index) => {
     const shortcut = index + 3;
     const button = document.createElement("button");
     button.className = "clock extra";
     button.id = clock.id;
+    const palette = clockPalette(clock.id, allClocks);
+    for (const property of ["accent", "ink", "surface", "active", "border"]) {
+      button.style.setProperty(`--clock-${property}`, palette[property]);
+    }
     button.setAttribute("aria-pressed", "false");
     button.innerHTML = `<span class="card-heading"><span><span class="role-title"><i></i><span data-clock-title></span></span><span class="role-description" data-clock-description></span></span><span class="badge" id="${clockPartId(clock.id, "badge")}">Ready</span></span><span class="time" id="${clockPartId(clock.id, "time")}">00:00:00</span><span class="time-caption"><strong id="${clockPartId(clock.id, "decimal")}">0.00 h</strong> · tracked today</span><span class="card-bottom"><span id="${clockPartId(clock.id, "action")}">Start <span aria-hidden="true">↗</span></span>${shortcut <= 9 ? `<kbd>${shortcut}</kbd>` : ""}</span>`;
     button.querySelector("[data-clock-title]").textContent = clock.name;
@@ -637,12 +638,31 @@ $("time-entry-form").onsubmit = async (event) => {
     $("time-entry-error").hidden = false;
   }
 };
+function populateColourSelect(select, automatic, selected) {
+  select.replaceChildren(
+    new Option(`Automatic (${automatic.label})`, ""),
+    ...clockColours.map(({ id, label }) => new Option(label, id)),
+  );
+  select.value = clockColourChoice(selected);
+  const showColour = () => {
+    const preset = clockColours.find(({ id }) => id === select.value) ?? automatic;
+    select.style.setProperty("--clock-preview", preset.accent);
+  };
+  select.onchange = showColour;
+  showColour();
+}
 function renderExtraClockSettings() {
+  if (!state) return;
+  const clocks = getExtraClocks(state);
+  const addColour = $("extra-clock-colour");
+  const automaticColour = (index) => clockColours[index % clockColours.length];
+  populateColourSelect(addColour, automaticColour(clocks.length), addColour.value);
   const list = $("extra-clock-list");
   list.replaceChildren();
-  for (const clock of getExtraClocks(state)) {
+  for (const [index, clock] of clocks.entries()) {
     const row = document.createElement("div");
     row.className = "extra-clock-row";
+    row.dataset.clockId = clock.id;
     const nameLabel = document.createElement("label");
     nameLabel.textContent = clock.archived
       ? "Name (archived)"
@@ -653,6 +673,12 @@ function renderExtraClockSettings() {
     name.value = clock.name;
     name.maxLength = 40;
     nameLabel.append(name);
+    const colourLabel = document.createElement("label");
+    colourLabel.className = "clock-colour-field";
+    colourLabel.textContent = "Colour";
+    const colour = document.createElement("select");
+    populateColourSelect(colour, automaticColour(index), clock.colour);
+    colourLabel.append(colour);
     const workLabel = document.createElement("label");
     workLabel.className = "check-label";
     const work = document.createElement("input");
@@ -662,23 +688,35 @@ function renderExtraClockSettings() {
     const actions = document.createElement("div");
     actions.className = "data-actions";
     const save = document.createElement("button");
+    save.dataset.saveClock = "";
     save.textContent = "Save changes";
     save.onclick = async () => {
+      if (save.disabled) return;
       const updatedName = name.value.trim();
       if (!updatedName) return name.focus();
-      await change(
+      const countsAsWork = work.checked;
+      const colourChoice = clockColourChoice(colour.value);
+      save.disabled = true;
+      const saved = await change(
         (current) => ({
           ...current,
           extraClock: null,
           extraClocks: getExtraClocks(current).map((item) =>
             item.id === clock.id
-              ? { ...item, name: updatedName, countsAsWork: work.checked }
+              ? { ...item, name: updatedName, countsAsWork, colour: colourChoice }
               : item,
           ),
         }),
         `${updatedName} updated`,
       );
-      renderExtraClockSettings();
+      save.disabled = false;
+      if (saved) {
+        renderExtraClockSettings();
+        list
+          .querySelector(`[data-clock-id="${CSS.escape(clock.id)}"] [data-save-clock]`)
+          ?.focus();
+        dataView.feedback(`${updatedName} updated.`);
+      }
     };
     const remove = document.createElement("button");
     remove.textContent = "Remove";
@@ -690,7 +728,7 @@ function renderExtraClockSettings() {
       )
         return;
       const now = Date.now();
-      await change(
+      const removed = await change(
         (current) => {
           const paused =
             current.active?.role === clock.id
@@ -714,50 +752,54 @@ function renderExtraClockSettings() {
         },
         `${clock.name} removed`,
       );
-      renderExtraClockSettings();
+      if (removed) {
+        renderExtraClockSettings();
+        $("extra-clock-name").focus();
+        dataView.feedback(`${clock.name} removed.`);
+      }
     };
     actions.append(save, remove);
-    row.append(nameLabel, workLabel, actions);
+    row.append(nameLabel, colourLabel, workLabel, actions);
     list.append(row);
   }
-  const count = getExtraClocks(state).length;
+  const count = clocks.length;
   $("extra-clock-count").textContent =
     `${count} additional ${count === 1 ? "clock" : "clocks"}`;
 }
-$("save-extra-clock").onclick = async () => {
+$("add-clock-form").onsubmit = async (event) => {
+  event.preventDefault();
+  const submit = $("save-extra-clock");
+  if (submit.disabled) return;
   const name = $("extra-clock-name").value.trim();
   if (!name) {
     $("extra-clock-name").focus();
     return;
   }
-  if (
-    await change(
-      (current) => ({
-        ...current,
-        extraClock: null,
-        extraClocks: [
-          ...getExtraClocks(current),
-          {
-            id: `extra-${crypto.randomUUID()}`,
-            name,
-            countsAsWork: $("extra-clock-work").checked,
-          },
-        ],
-      }),
-      `${name} added`,
-    )
-  ) {
+  const countsAsWork = $("extra-clock-work").checked;
+  const colour = clockColourChoice($("extra-clock-colour").value);
+  submit.disabled = true;
+  const added = await change(
+    (current) => ({
+      ...current,
+      extraClock: null,
+      extraClocks: [
+        ...getExtraClocks(current),
+        { id: `extra-${crypto.randomUUID()}`, name, countsAsWork, colour },
+      ],
+    }),
+    `${name} added`,
+  );
+  submit.disabled = false;
+  if (added) {
     $("extra-clock-name").value = "";
     $("extra-clock-work").checked = true;
+    $("extra-clock-colour").value = "";
     renderExtraClockSettings();
+    $("extra-clock-name").focus();
+    dataView.feedback(`${name} added.`);
   }
 };
-$("data").addEventListener("click", renderExtraClockSettings);
-$("backup-reminder").addEventListener("click", renderExtraClockSettings);
-$("configure-clock").onclick = () => {
-  $("data").click();
-  $("extra-clock-name").focus();
-};
+$("configure-clock").onclick = () => dataView.open("clocks");
 $("compact").onclick = () => {
   const compact = document.body.classList.toggle("compact");
   $("compact").textContent = compact ? "Full view" : "Compact view";
@@ -769,6 +811,9 @@ const dataView = setupData({
   change,
   download,
   fail,
+  renderClocks: () => {
+    if (state) renderExtraClockSettings();
+  },
 });
 async function reloadState() {
   if (!repository) return;

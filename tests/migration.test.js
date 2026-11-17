@@ -8,6 +8,7 @@ import {
 } from "../src/domain.js";
 import { migrateStoredState } from "../src/migration.js";
 import { restoreBackup } from "../src/backup.js";
+import { clockPalette } from "../src/clock-colours.js";
 
 import { v2State } from "./fixtures/v2.js";
 
@@ -41,6 +42,23 @@ test("existing v1 data and new multi-clock settings survive unchanged", () => {
     ],
   };
   assert.deepEqual(migrateStoredState(original), original);
+});
+
+test("clock colours survive backup restore and legacy clocks get an automatic palette", () => {
+  const original = {
+    ...emptyState(),
+    extraClocks: [
+      { id: "extra-legacy", name: "Legacy", countsAsWork: true },
+      { id: "extra-colour", name: "Project", countsAsWork: true, colour: "rose" },
+      { id: "extra-unknown", name: "Imported", countsAsWork: true, colour: "__proto__" },
+    ],
+  };
+  const imported = JSON.parse(JSON.stringify({ state: original, exportedAt: 400 }));
+  const restored = restoreBackup(imported, 500, "restore");
+  assert.deepEqual(restored, original);
+  assert.equal(clockPalette("extra-legacy", restored.extraClocks).id, "violet");
+  assert.equal(clockPalette("extra-colour", restored.extraClocks).id, "rose");
+  assert.equal(clockPalette("extra-unknown", restored.extraClocks).id, "rose");
 });
 
 test("renamed core roles remain separate with their original labels and classification", () => {

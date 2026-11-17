@@ -1,4 +1,4 @@
-import { localDate } from "./domain.js";
+import { decimalHours, duration, localDate } from "./domain.js";
 
 const shortTime = new Intl.DateTimeFormat(undefined, {
   hour: "numeric",
@@ -17,14 +17,6 @@ const axisTime = new Intl.DateTimeFormat(undefined, {
   minute: "2-digit",
   hourCycle: "h23",
 });
-const extraColors = [
-  "#a6b3d6",
-  "#b49aca",
-  "#d49d9a",
-  "#83babb",
-  "#b3b879",
-  "#d5a37b",
-];
 
 function sameSwitch(first, second) {
   return (
@@ -54,7 +46,7 @@ function shiftLabel(ms) {
   );
 }
 
-export function setupSwitchAdjustment({ save, roleName }) {
+export function setupSwitchAdjustment({ save, roleName, roleColor }) {
   const $ = (id) => document.getElementById(id);
   const editor = $("switch-editor");
   const slider = $("switch-slider");
@@ -66,24 +58,13 @@ export function setupSwitchAdjustment({ save, roleName }) {
   const errorMessage = $("switch-error");
   const switchList = $("timeline-switches");
   const markerElements = new Map();
-  const colors = new Map([
-    ["vd", "#8ab59c"],
-    ["sit", "#d8b879"],
-  ]);
   let selection = null;
   let saving = false;
   let displayedMarkers = "";
   let displayedDay = null;
   let displayedRoles = "";
+  let displayedAxis = "";
   let latestNow = Date.now();
-
-  function clockColor(role) {
-    if (!colors.has(role)) {
-      const index = colors.size - 2;
-      colors.set(role, extraColors[index % extraColors.length]);
-    }
-    return colors.get(role);
-  }
 
   function updateSelectedMarkers() {
     for (const [id, { button, dot }] of markerElements) {
@@ -120,20 +101,24 @@ export function setupSwitchAdjustment({ save, roleName }) {
     saveButton.disabled = saving || transferTime === 0;
   }
 
-  function configureEditor(point, end) {
+  function renderEditorClocks(point, end) {
     const formatter =
       localDate(point.start) === localDate(end) ? shortTime : datedTime;
-    slider.min = String(point.start);
-    slider.max = String(end);
-    slider.value = String(point.at);
-    editor.style.setProperty("--switch-from", clockColor(point.from));
-    editor.style.setProperty("--switch-to", clockColor(point.to));
+    editor.style.setProperty("--switch-from", roleColor(point.from));
+    editor.style.setProperty("--switch-to", roleColor(point.to));
     $("switch-direction").textContent =
       `${roleName(point.from)} → ${roleName(point.to)} switch time`;
     $("switch-start").textContent =
       `${roleName(point.from)} · ${formatter.format(point.start)}`;
     $("switch-end").textContent =
       `${roleName(point.to)} · ${formatter.format(end)}${point.end === null ? " (running)" : ""}`;
+  }
+
+  function configureEditor(point, end) {
+    slider.min = String(point.start);
+    slider.max = String(end);
+    slider.value = String(point.at);
+    renderEditorClocks(point, end);
     updatePreview();
   }
 
@@ -164,13 +149,66 @@ export function setupSwitchAdjustment({ save, roleName }) {
     status.textContent = message;
   }
 
-  function renderOverview({ start, end, segments, switches }) {
-    const atPercent = (at) => `${(100 * (at - start)) / (end - start)}%`;
-    $("timeline-empty").hidden = Boolean(segments.length || switches.length);
-    $("timeline-overview").hidden = !segments.length && !switches.length;
-    $("timeline-switch-hint").hidden = !switches.length;
-    $("timeline-no-switches").hidden = Boolean(switches.length);
+  function renderBalance(segments, workTotal) {
+    const timePerClock = new Map();
+    let tracked = 0;
+    for (const { role, start, end } of segments) {
+      const elapsed = end - start;
+      tracked += elapsed;
+      timePerClock.set(role, (timePerClock.get(role) ?? 0) + elapsed);
+    }
+    const workSummary =
+      Number.isFinite(workTotal) && workTotal !== tracked
+        ? ` · ${duration(workTotal)} work`
+        : "";
+    $("balance-total").hidden = !tracked;
+    $("balance-total").textContent = `${duration(tracked)} tracked (${decimalHours(tracked)})${workSummary}`;
+
+    const clocks = [...timePerClock].map(([role, elapsed]) => ({
+      name: roleName(role),
+      color: roleColor(role),
+      elapsed: duration(elapsed),
+      percentage: Math.round((100 * elapsed) / tracked),
+    }));
+    const legendKey = JSON.stringify(clocks);
+    if (displayedRoles === legendKey) return;
+    displayedRoles = legendKey;
+    const items = clocks.map(({ name, color, elapsed, percentage }) => {
+      const li = document.createElement("li");
+      const key = document.createElement("span");
+      key.className = "timeline-key";
+      key.style.setProperty("--clock-color", color);
+      const amount = document.createElement("span");
+      amount.className = "timeline-clock-total";
+      const share = document.createElement("b");
+      share.textContent = percentage ? `${percentage}%` : "<1%";
+      amount.append(share, elapsed);
+      li.append(key, name, amount);
+      return li;
+    });
+    $("timeline-legend").replaceChildren(...items);
+  }
+
+  function renderOverview({ start, end, segments, switches }, workTotal) {
+    const hasActivity = Boolean(segments.length || switches.length);
+    $("timeline-empty").hidden = hasActivity;
+    $("timeline-overview").hidden = !hasActivity;
+    $("timeline-switch-hint").hidden = segments.length <= 1 && !switches.length;
+    $("timeline-switch-hint").textContent = switches.length
+      ? "Select a dot to adjust a switch. Gaps show untracked time."
+      : "Gaps show untracked time.";
     switchList.hidden = !switches.length;
+    renderBalance(segments, workTotal);
+
+    // Use the recorded window so a short shift stays legible. Internal gaps
+    // still take up their actual share of the timeline.
+    const first = Math.min(segments[0]?.start ?? end, switches[0]?.at ?? end);
+    const windowEnd = segments.reduce(
+      (last, segment) => Math.max(last, segment.end),
+      switches.at(-1)?.at ?? first,
+    );
+    const last = Math.max(first + 1, windowEnd);
+    const atPercent = (at) => `${(100 * (at - first)) / (last - first)}%`;
 
     const intervalDetails = [];
     const blocks = segments.map((segment) => {
@@ -178,8 +216,8 @@ export function setupSwitchAdjustment({ save, roleName }) {
       const name = roleName(segment.role);
       block.className = "timeline-segment";
       block.style.left = atPercent(segment.start);
-      block.style.right = `${(100 * (end - segment.end)) / (end - start)}%`;
-      block.style.setProperty("--clock-color", clockColor(segment.role));
+      block.style.right = `${(100 * (last - segment.end)) / (last - first)}%`;
+      block.style.setProperty("--clock-color", roleColor(segment.role));
       block.toggleAttribute("data-running", segment.running);
       const startLabel = shortTime.format(segment.start);
       const endLabel =
@@ -188,42 +226,26 @@ export function setupSwitchAdjustment({ save, roleName }) {
       const detail = document.createElement("li");
       detail.textContent = block.title;
       intervalDetails.push(detail);
-      if (segment.end - segment.start >= (end - start) / 14)
-        block.textContent = name;
       return block;
     });
     $("timeline-segments").replaceChildren(...blocks);
     $("timeline-intervals").replaceChildren(...intervalDetails);
 
-    if (displayedDay !== start) {
-      const labelTimes = [0, 6, 12, 18].map((hour) =>
-        new Date(start).setHours(hour, 0, 0, 0),
-      );
-      const ticks = [...labelTimes, end].map((at) => {
+    const axisKey = `${first}:${last}:${end}`;
+    if (displayedAxis !== axisKey) {
+      displayedAxis = axisKey;
+      const labelTimes = [first];
+      if (last - first >= 30 * 60000) labelTimes.push((first + last) / 2);
+      labelTimes.push(last);
+      const formatter = last - first < 10 * 60000 ? shortTime : axisTime;
+      const ticks = labelTimes.map((at) => {
         const tick = document.createElement("span");
         tick.className = "timeline-tick";
         tick.style.left = atPercent(at);
-        tick.textContent = at === end ? "24:00" : axisTime.format(at);
+        tick.textContent = at === end ? "24:00" : formatter.format(at);
         return tick;
       });
       $("timeline-ticks").replaceChildren(...ticks);
-    }
-
-    const roles = [...new Set(segments.map(({ role }) => role))];
-    const legendKey = JSON.stringify(
-      roles.map((role) => [role, roleName(role)]),
-    );
-    if (displayedRoles !== legendKey) {
-      displayedRoles = legendKey;
-      const items = roles.map((role) => {
-        const li = document.createElement("li");
-        const key = document.createElement("span");
-        key.className = "timeline-key";
-        key.style.setProperty("--clock-color", clockColor(role));
-        li.append(key, roleName(role));
-        return li;
-      });
-      $("timeline-legend").replaceChildren(...items);
     }
 
     const markerKey = JSON.stringify([
@@ -234,7 +256,12 @@ export function setupSwitchAdjustment({ save, roleName }) {
         roleName(point.to),
       ]),
     ]);
-    if (displayedMarkers === markerKey) return;
+    if (displayedMarkers === markerKey) {
+      for (const { dot, point } of markerElements.values()) {
+        dot.style.left = atPercent(point.at);
+      }
+      return;
+    }
     displayedMarkers = markerKey;
     const focusedId = document.activeElement?.dataset?.switchId;
     markerElements.clear();
@@ -274,10 +301,14 @@ export function setupSwitchAdjustment({ save, roleName }) {
     updateSelectedMarkers();
   }
 
-  function refresh(timeline, { now = Date.now(), revealFromId } = {}) {
+  function refresh(
+    timeline,
+    { now = Date.now(), revealFromId, workTotal, isToday = true } = {},
+  ) {
     latestNow = now;
     const previousDay = displayedDay;
-    renderOverview(timeline);
+    $("timeline-title").textContent = isToday ? "Today’s balance" : "Day balance";
+    renderOverview(timeline, workTotal);
     displayedDay = timeline.start;
     if (displayedDay !== previousDay) showStatus("");
     if (selection) {
@@ -294,6 +325,9 @@ export function setupSwitchAdjustment({ save, roleName }) {
       } else if (point.end === null && !touched && !saving && latestNow > end) {
         selection.end = latestNow;
         configureEditor(point, selection.end);
+      } else {
+        renderEditorClocks(point, end);
+        updatePreview();
       }
     }
     const reveal = markerElements.get(revealFromId)?.point;
