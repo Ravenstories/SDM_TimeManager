@@ -88,23 +88,35 @@
         ><span id="session-status">Select a responsibility to begin.</span
         ><button id="configure-clock" class="quiet">＋ Add clock</button>
       </div>
-      <section class="switch-adjustment" id="switch-adjustment" hidden>
-        <button
-          id="switch-toggle"
-          class="quiet switch-toggle"
-          type="button"
-          aria-expanded="false"
-          aria-controls="switch-editor"
-        >
-          <span>Adjust last switch</span>
-          <span id="switch-direction" class="switch-direction"></span>
-        </button>
+      <section class="day-timeline" id="timeline" aria-labelledby="timeline-title">
+        <div class="section-heading">
+          <h2 id="timeline-title" tabindex="-1">Day timeline</h2>
+          <div class="day-actions">
+            <button id="today" class="quiet">Today</button>
+            <label class="date-label">View day <input type="date" id="day" /></label>
+            <button id="manage-time">Edit time</button>
+          </div>
+        </div>
+        <div id="past-summary" hidden></div>
+        <p id="timeline-empty" class="hint" hidden>No time tracked on this day.</p>
+        <div id="timeline-overview" hidden>
+          <div class="timeline-plot" aria-hidden="true">
+            <div id="timeline-segments" class="timeline-segments"></div>
+            <div id="timeline-dots" class="timeline-dots"></div>
+            <div id="timeline-ticks" class="timeline-ticks"></div>
+          </div>
+          <ul id="timeline-legend" class="timeline-legend" aria-label="Clocks on this day"></ul>
+          <ul id="timeline-intervals" class="sr-only" aria-label="Tracked intervals"></ul>
+          <p id="timeline-switch-hint" class="hint" hidden>Select a dot or a switch below to move time between clocks. Gaps show untracked time.</p>
+          <ul id="timeline-switches" class="timeline-switches" aria-label="Clock switches" hidden></ul>
+          <p id="timeline-no-switches" class="hint" hidden>No switches between adjacent clock entries on this day.</p>
+        </div>
         <form class="switch-editor" id="switch-editor" hidden>
           <div class="switch-editor-heading">
-            <label for="switch-slider">New switch time</label>
+            <label for="switch-slider" id="switch-direction">Switch time</label>
             <output id="switch-time" for="switch-slider" aria-live="off"></output>
           </div>
-          <p id="switch-hint">Drag the dot left to when you changed roles.</p>
+          <p id="switch-hint">Drag the dot to when you changed clocks.</p>
           <input
             id="switch-slider"
             type="range"
@@ -114,7 +126,7 @@
           />
           <div class="switch-endpoints" aria-hidden="true">
             <span id="switch-start"></span>
-            <span id="switch-original"></span>
+            <span id="switch-end"></span>
           </div>
           <p id="switch-transfer" class="switch-transfer"></p>
           <p id="switch-error" class="switch-error" role="alert" hidden></p>
@@ -153,15 +165,7 @@
             <p class="eyebrow">LEAVE A LITTLE CONTEXT</p>
             <h2>Work notes</h2>
           </div>
-          <div class="day-actions">
-            <button id="today" class="quiet">Today</button>
-            <label class="date-label"
-              >View day <input type="date" id="day"
-            /></label>
-            <button id="manage-time">Edit time</button>
-          </div>
         </div>
-        <div id="past-summary" hidden></div>
         <form id="note-form">
           <label class="sr-only" for="note">Work note</label
           ><textarea
@@ -235,7 +239,7 @@
       <div class="table-scroll">
         <table>
           <caption>
-            Daily breakdown · select a date to see its notes
+            Daily breakdown · select a date to review its timeline and notes
           </caption>
           <thead>
             <tr>

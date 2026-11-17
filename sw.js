@@ -12,6 +12,7 @@ const FILES = [
   "./src/reports.js",
   "./src/report-view.js",
   "./src/switch-view.js",
+  "./src/timeline.js",
   "./src/backup.js",
   "./src/data-view.js",
   "./src/styles.css",

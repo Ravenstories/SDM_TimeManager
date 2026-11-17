@@ -8,14 +8,13 @@ import {
   saveSession,
   removeSession,
   adjustActiveStart,
-  adjustSwitch,
-  latestSwitch,
   applyScheduledSwitch,
   scheduleSwitch,
   scheduleSwitchAtTotal,
   dayBounds,
   decimalHours,
 } from "./domain.js";
+import { dayTimeline, moveSwitch } from "./timeline.js";
 import { KEY } from "./storage.js";
 import { IndexedRepository } from "./indexed-repository.js";
 import { setupData } from "./data-view.js";
@@ -28,10 +27,12 @@ let repository,
   state,
   selectedDay = localDate(),
   lastToday = localDate(),
+  timelineMinute,
   transitionInProgress = false;
 const switchAdjustment = setupSwitchAdjustment({
+  roleName: (role) => roleName(role),
   save: (expected, at) =>
-    change((s) => adjustSwitch(s, expected, at), "Switch time adjusted", {
+    change((s) => moveSwitch(s, expected, at, Date.now()), "Switch time adjusted", {
       onError: (error) => {
         throw error;
       },
@@ -47,7 +48,8 @@ const reports = setupReports({
     $("compact").textContent = "Compact view";
     $("compact").setAttribute("aria-pressed", "false");
     render();
-    document.querySelector(".journal").scrollIntoView({ block: "start" });
+    $("timeline").scrollIntoView({ block: "start" });
+    $("day").focus({ preventScroll: true });
   },
 });
 const announce = (message) => {
@@ -93,11 +95,12 @@ async function activate(role) {
     )
   ) {
     if (role) $("note-role").value = role;
-    const switchPoint = latestSwitch(state);
-    if (switchPoint?.sessionId === sessionId) {
-      switchAdjustment.refresh(switchPoint, { reveal: true });
-    }
+    if (role) refreshTimeline(Date.now(), sessionId);
   }
+}
+function refreshTimeline(now = Date.now(), revealFromId) {
+  switchAdjustment.refresh(dayTimeline(state, selectedDay, now), { now, revealFromId });
+  timelineMinute = Math.floor(now / 60000);
 }
 function tick() {
   if (!state) return;
@@ -124,8 +127,12 @@ function tick() {
       selectedDay = today;
       $("day").value = today;
       renderNotes();
+      refreshTimeline(now);
     }
     lastToday = today;
+  }
+  if (state.active && selectedDay === today && timelineMinute !== Math.floor(now / 60000)) {
+    refreshTimeline(now);
   }
   const t = totals(state, today, now),
     balanceTotal = t.vd + t.sit,
@@ -320,7 +327,7 @@ function render() {
     ? `Manage clocks (${extraClocks.length})`
     : "＋ Add clock";
   tick();
-  switchAdjustment.refresh(latestSwitch(state));
+  refreshTimeline();
   renderNotes();
   reports.refresh();
 }
@@ -407,6 +414,7 @@ $("note-form").onsubmit = async (e) => {
     selectedDay = localDate();
     $("day").value = selectedDay;
     renderNotes();
+    refreshTimeline();
   }
 };
 $("note").oninput = () => {

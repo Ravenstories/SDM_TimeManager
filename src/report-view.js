@@ -36,7 +36,7 @@ export function setupReports({ getState, download, showDay }) {
         button = document.createElement("button");
       button.textContent = day.date;
       button.className = "quiet";
-      button.setAttribute("aria-label", `View notes for ${day.date}`);
+      button.setAttribute("aria-label", `Review timeline and notes for ${day.date}`);
       button.onclick = () => {
         $("reports").close();
         showDay(day.date);

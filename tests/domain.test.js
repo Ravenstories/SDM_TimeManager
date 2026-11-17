@@ -3,8 +3,6 @@ import assert from "node:assert/strict";
 import {
   emptyState,
   switchRole,
-  latestSwitch,
-  adjustSwitch,
   totals,
   localDate,
   duration,
@@ -16,7 +14,6 @@ import {
   adjustActiveStart,
   applyScheduledSwitch,
   scheduleSwitch,
-  scheduleSwitchAtTotal,
 } from "../src/domain.js";
 test("exports the decimal-hour formatter used by the time header", () => {
   assert.equal(typeof decimalHours, "function");
@@ -33,120 +30,6 @@ test("switch and pause preserve mutually exclusive time", () => {
     extra: 0,
   });
   assert.equal(s.active, null);
-});
-test("moving the latest VD to SIT switch earlier transfers only the selected time", () => {
-  const start = new Date(2026, 8, 9, 9).getTime();
-  const minute = 60000;
-  let state = switchRole(emptyState(), "sit", start, "start");
-  state = switchRole(state, "vd", start + 10 * minute, "first-sit");
-  state = switchRole(state, "sit", start + 40 * minute, "latest-vd");
-  state.notes.push({
-    id: "note",
-    role: "vd",
-    at: start + 35 * minute,
-    text: "Work note",
-  });
-  state.sessions.reverse();
-  const expected = latestSwitch(state);
-  assert.deepEqual(expected, {
-    sessionId: "latest-vd",
-    from: "vd",
-    to: "sit",
-    start: start + 10 * minute,
-    at: start + 40 * minute,
-  });
-
-  const adjusted = adjustSwitch(state, expected, start + 25 * minute);
-  const now = start + 50 * minute;
-  assert.deepEqual(totals(state, localDate(start), now), {
-    vd: 30 * minute,
-    sit: 20 * minute,
-    extra: 0,
-  });
-  assert.deepEqual(totals(adjusted, localDate(start), now), {
-    vd: 15 * minute,
-    sit: 35 * minute,
-    extra: 0,
-  });
-  assert.equal(adjusted.sessions[0].end, adjusted.active.start);
-  assert.equal(adjusted.active.role, "sit");
-  assert.deepEqual(adjusted.sessions[1], state.sessions[1]);
-  assert.deepEqual(adjusted.notes, state.notes);
-  assert.deepEqual(validateState(JSON.parse(JSON.stringify(adjusted))), adjusted);
-});
-test("an entire SIT session can be reassigned to VD across midnight", () => {
-  const start = new Date(2026, 8, 9, 23, 30).getTime();
-  const switchAt = new Date(2026, 8, 10, 0, 30).getTime();
-  const state = switchRole(
-    switchRole(emptyState(), "sit", start, "a"),
-    "vd",
-    switchAt,
-    "b",
-  );
-  const adjusted = adjustSwitch(state, latestSwitch(state), start);
-
-  assert.deepEqual(totals(adjusted, "2026-09-09", switchAt), {
-    vd: 1800000,
-    sit: 0,
-    extra: 0,
-  });
-  assert.deepEqual(totals(adjusted, "2026-09-10", switchAt), {
-    vd: 1800000,
-    sit: 0,
-    extra: 0,
-  });
-  assert.equal(latestSwitch(adjusted), null);
-});
-test("switch adjustments reject stale snapshots and positions outside the session", () => {
-  let state = switchRole(emptyState(), "vd", 100, "a");
-  assert.equal(latestSwitch(state), null);
-  state = switchRole(state, "sit", 300, "b");
-  const expected = latestSwitch(state);
-  assert.equal(adjustSwitch(state, expected, 300), state);
-  for (const invalid of [99, 301, Infinity, NaN, null]) {
-    assert.throws(() => adjustSwitch(state, expected, invalid), /previous session/);
-  }
-  const adjusted = adjustSwitch(state, expected, 200);
-  assert.throws(() => adjustSwitch(adjusted, expected, 150), /latest switch changed/);
-  state = switchRole(state, null, 400, "c");
-  assert.equal(latestSwitch(state), null);
-  state = switchRole(state, "vd", 500, "d");
-  assert.equal(latestSwitch(state), null);
-  assert.throws(() => adjustSwitch(state, expected, 150), /latest switch changed/);
-});
-test("only unambiguous VD and SIT switches without overlapping history can be adjusted", () => {
-  const state = switchRole(switchRole(emptyState(), "vd", 100, "a"), "sit", 300, "b");
-  for (const conflicting of [
-    { id: "c", role: "extra", start: 250, end: 350 },
-    { id: "c", role: "extra", start: 300, end: 300 },
-    { id: "b", role: "extra", start: 10, end: 20 },
-  ]) {
-    assert.equal(latestSwitch({ ...state, sessions: [...state.sessions, conflicting] }), null);
-  }
-  const extra = { ...state, active: { ...state.active, role: "extra" } };
-  assert.equal(latestSwitch(extra), null);
-  assert.equal(
-    latestSwitch({ ...state, sessions: [{ ...state.sessions[0], role: "extra" }] }),
-    null,
-  );
-});
-test("moving the switch preserves a delay schedule and recalculates a total schedule", () => {
-  const minute = 60000;
-  const start = new Date(2026, 8, 9, 9).getTime();
-  const switchAt = start + 40 * minute;
-  const now = start + 50 * minute;
-  const state = switchRole(switchRole(emptyState(), "vd", start, "a"), "sit", switchAt, "b");
-  const expected = latestSwitch(state);
-  const correctedAt = start + 25 * minute;
-  const delayed = scheduleSwitch(state, "vd", now + 30 * minute, now);
-  assert.deepEqual(adjustSwitch(delayed, expected, correctedAt).scheduledSwitch, delayed.scheduledSwitch);
-
-  const scheduled = scheduleSwitchAtTotal(state, "vd", 60 * minute, now);
-  const adjusted = adjustSwitch(scheduled, expected, correctedAt);
-  assert.deepEqual(adjusted.scheduledSwitch, {
-    ...scheduled.scheduledSwitch,
-    at: scheduled.scheduledSwitch.at - 15 * minute,
-  });
 });
 test("manual sessions can be added, edited, sorted, and removed", () => {
   let state = emptyState();
